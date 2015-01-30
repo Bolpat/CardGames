@@ -52,7 +52,6 @@
 #define RANKORDER   HIGH_10
 
 -- DO NOT CHANGE UNDER HERE ----------------------------------------------------
-
                 module Cards where
 
                 import Control.Applicative
