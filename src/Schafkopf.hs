@@ -5,7 +5,7 @@ module Schafkopf where
 import Utility
 import Utility.Cond
 import Cards
-import Cards.Parse
+import qualified Cards.Parse
 import Cards.Shuffle
 
 import Trick.Rules
@@ -16,6 +16,7 @@ import Schafkopf.AI as AI
 
 import Prelude hiding ((||), (&&), not, or, and)
 import Data.List hiding (and, or)
+
 import Control.Monad
 import Control.Applicative
 
@@ -97,6 +98,9 @@ main_GameChoice _ state @ (game -> Solo _) = do
 main_GameChoice _ state = main_play state
 
 main_play state = do
+    --state2 <- foldUM state const (\_ y -> trick y) [1::Int .. 8]
+    state2 <- foldUM state const (const trick) [1::Int .. 8]
+    {-
     state <- trick state
     state <- trick state
     state <- trick state
@@ -106,9 +110,9 @@ main_play state = do
     state <- trick state
     state <- trick state
     state <- trick state
-    
+    -}
     putStrLn ""
-    main_finish state 
+    main_finish state2
       where
         -- trick :: GameState -> IO GameState
         trick GameState { hands = [] }   = error "This shall not occur."
@@ -117,14 +121,14 @@ main_play state = do
                 {
                     playerNames,
                     no,
-                    hands = hs @ (h0:_),
+                    hands   = hs @ (h0:_),
                     score,
                     takenTr,
                     rules   = rs @ (r0:_),
                     trRule  = trRule,
                     condRS
                 } = do
-            playedCards <- foldUM giveBy [0..3]
+            playedCards <- foldUM [] (:) giveBy [0..3]
             let first = last playedCards
             
             let (crd, add no mod 4 -> plNo) = takesTrick trRule (reverse playedCards)
@@ -149,6 +153,10 @@ main_play state = do
                                 else rs
                 }
           where
+            suitChars = ['s', 'h', 'g', 'e']
+            rankChars = ['7', '8', '9', 'U', 'O', 'K', 'X', 'A']
+            readCard = Cards.Parse.readCard suitChars rankChars
+
             giveBy = giveBy' . add no mod 4
             giveBy' 0 t = do -- Player 0 is human player
                 putStrLn $ "Du hast die folgenden Karten:"
@@ -205,9 +213,9 @@ main_finish GameState
             mapM_ (putStrLn . payget) [0..3]
         payget :: Int -> String
         payget n | n `elem` winnerParty   = (if n == 0 then "Du bekommst " else playerNames !! n ++ " bekommt ")
-                        ++ show (( 2 :: Int) + schneider + schwarz) ++ "."
+                        ++ show ((2 :: Int) + schneider + schwarz) ++ "."
                  | otherwise              = (if n == 0 then "Du zahlst " else playerNames !! n ++ " zahlt ")
-                        ++ show ((-2 :: Int) - schneider - schwarz) ++ "."
+                        ++ show ((2 :: Int) + schneider + schwarz) ++ "."
 main_finish GameState
   {
     game = Ramsch,
@@ -232,22 +240,22 @@ main_finish GameState
 
         payget (   0, py) | py < 0     = "Du zahlst " ++ show (-py) ++ "."
                           | py > 0     = "Du bekommst " ++ show py ++ "."
-        payget (plno, py) | py < 0     = playerNames !! plno ++ " zahlt " ++ show (-py) ++ "."
-                          | py > 0     = playerNames !! plno ++ show plno ++ " bekommt " ++ show   py ++ "."
+        payget (plno, py) | py < 0     = playerNames !! plno ++ " zahlt "   ++ show (-py) ++ "."
+                          | py > 0     = playerNames !! plno ++ " bekommt " ++ show   py ++ "."
         payget _                       = ""
         payment :: (Int, [Int]) -- virgins, payment
         payment      =  let vs = (fst $== 0) <$> orderedScore -- vs (Virgins) when trick == 0
                             vc = length $ filter (== True) vs
                             compare_fst (fst -> a) (fst -> b) = compare a b
                         in (vc,) $ (2^vc *) <$> case zipBetweenWith compare_fst orderedScore of
-                            [LT, LT, LT] -> [-3, -1,  1,  3]
-                            [LT, LT, EQ] -> [-3, -1,  2,  2]
-                            [LT, EQ, LT] -> [-3,  0,  0,  3]
-                            [EQ, LT, LT] -> [-2, -2,  1,  3]
-                            [LT, EQ, EQ] -> [-3,  1,  1,  1]
-                            [EQ, LT, EQ] -> [-2, -2,  2,  2]
-                            [EQ, EQ, LT] -> [-1, -1, -1,  3]
-                            [EQ, EQ, EQ] -> [ 0,  0,  0,  0]
+                            [LT, LT, LT] -> [3, 1, -1, -3]
+                            [LT, LT, EQ] -> [3, 1, -2, -2]
+                            [LT, EQ, LT] -> [3, 0,  0, -3]
+                            [EQ, LT, LT] -> [2, 2, -1, -3]
+                            [LT, EQ, EQ] -> [3, 1, -1, -1]
+                            [EQ, LT, EQ] -> [2, 2, -2, -2]
+                            [EQ, EQ, LT] -> [1, 1,  1, -3]
+                            [EQ, EQ, EQ] -> [0, 0,  0,  0]
                             _            -> error "This shall not occur. The list is not 3 long or not ordered."
     
 main_finish state @ GameState

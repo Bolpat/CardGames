@@ -55,15 +55,9 @@
 
                 module Cards where
 
-                import Data.Char
                 import Control.Applicative
 
-                suitChar :: Suit -> Char
-                suitChars = suitChar <$> suits
 
-                --rankChar :: Rank -> Char
-                --rankChars = rankChar <$> ranks
-                
 #if SUITS == DEU
                 data Suit = Bells | Hearts | Leaves | Acorns
 #if LANG == DEU
@@ -74,8 +68,6 @@
                     show Leaves = "Gras"
                     show Acorns = "Eichel"
 
-                suitChar = toLower . head . show
-
 #elif LANG == ITA
                     deriving (Eq, Ord, Enum, Bounded)
                 instance Show Suit where
@@ -83,9 +75,6 @@
                     show Hearts = "Cuori"
                     show Leaves = "Foglie"
                     show Acorns = "Ghiande"
-
-                suitChar Bells = 'p'
-                suitChar s     = toLower . head . show $ s
 #else
                     deriving (Eq, Ord, Enum, Bounded, Show)
                 suitChar = toLower . head . show
@@ -100,7 +89,6 @@
                     show Swords = "Schwert"
                     show Clubs  = "Prügel"
 
-                suitChar = toLower . head . show
 #elif LANG == ITA
                     deriving (Eq, Ord, Enum, Bounded)
                 instance Show Suit where
@@ -109,10 +97,8 @@
                     show Swords = "Spade"
                     show Clubs  = "Bastoni"
 
-                suitChar = toLower . head . show
 #else
                     deriving (Eq, Ord, Enum, Bounded, Show)
-                suitChar = toLower . head . show
 #endif
 #else
                 data Suit = Diamonds | Hearts | Spades | Clubs
@@ -123,11 +109,6 @@
                     show Hearts   = "Herz"
                     show Spades   = "Pik"
                     show Clubs    = "Kreuz"
-
-                suitChar Diamonds = 'd'
-                suitChar Hearts   = 'h'
-                suitChar Spades   = 's'
-                suitChar Clubs    = 'c'
 #elif LANG == ITA
                     deriving (Eq, Ord, Enum, Bounded)
                 instance Show Suit where
@@ -136,12 +117,13 @@
                     show Spades   = "Picche"
                     show Clubs    = "Fiori"
 
-                suitChar = toLower . head . show
 #else
                     deriving (Eq, Ord, Enum, Bounded, Show)
-                suitChar = toLower . head . show
 #endif
 #endif
+
+
+
 
                 data Rank =
 #if (RANKS_6_10 <= RANKS) && (RANKS <= RANKS_9_10)
@@ -270,12 +252,6 @@
 #endif
 
 
-                suits :: [Suit]
-                suits = [minBound .. maxBound]
-
-                ranks :: [Rank]
-                ranks = [minBound .. maxBound]
-
                 -- | Cards with Suit and Rank
                 type Hand = [Card]
                 data Card = Card { suit :: Suit,
@@ -291,6 +267,15 @@
                 instance Show Card where
                     show (Card s r) = show r ++ " of " ++ show s
 #endif
+
+
+                -- | The ordered list of Suits
+                suits :: [Suit]
+                suits = [minBound .. maxBound]
+
+                -- | The ordered list of Ranks
+                ranks :: [Rank]
+                ranks = [minBound .. maxBound]
 
                 -- | The whole deck
                 allCards :: [Card]

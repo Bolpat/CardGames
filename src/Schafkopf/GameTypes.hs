@@ -172,7 +172,6 @@ instance Show GameType where
 instance Ord GameType where
     Ramsch              `compare` Ramsch            = EQ
     Ramsch              `compare` _                 = LT
-    _                   `compare` Ramsch            = GT
     
     Rufspiel _          `compare` Rufspiel _        = EQ
     Rufspiel _          `compare` _                 = LT
@@ -216,4 +215,3 @@ instance Ord GameType where
     
     BettelBrett         `compare` BettelBrett       = EQ
     BettelBrett         `compare` _                 = LT
-    _                   `compare` BettelBrett       = GT

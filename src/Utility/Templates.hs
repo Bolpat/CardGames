@@ -20,7 +20,8 @@ zipN n = do
     lamE lsP $ appE [| getZipList |] $
         foldl (flip appE) ( appE [| pure |] (tupleN n) ) appZlsE
 
--- n-Tuple constructor
+
+tupleN :: Int -> ExpQ
 tupleN n = do
     xsN <- replicateM n $ newName "x"
     lamE (varP <$> xsN) $ tupE (varE <$> xsN)

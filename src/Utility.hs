@@ -81,15 +81,16 @@ choiceBy :: Eq key => (key -> String) -> (String -> Maybe key) ->
 --  Prompt    Selection list
     String -> [(key, String, value)] -> IO value
 choiceBy _    _    _      [] = error "Give the user something to choose on."
-choiceBy show read prompt l  = do
+choiceBy shw rd prompt l  = do
     putStrLn prompt
     printPoss l
     (_, descr, value) <- choiceIter
     putStrLn $ "Du hast " ++ descr ++ " gewählt."
+    putStrLn ""
     return value
     where
         -- printPoss :: Show key => [(key, String, value)] -> IO ()
-        printPoss = mapM_ $ \(key, descr, _) -> putStrLn $ show key ++ ": " ++ descr
+        printPoss = mapM_ $ \(key, descr, _) -> putStrLn $ shw key ++ ": " ++ descr
         
         -- coiceAcc :: Eq key => key -> [(key, descr, value)] -> Maybe (key, descr, value)
         coiceAcc _   []              = Nothing
@@ -100,7 +101,7 @@ choiceBy show read prompt l  = do
         -- choiceIter :: IO (key, String, value) -- Haskell doesn't like the type here.
         choiceIter = do
             chS <- getLine
-            case read chS of
+            case rd chS of
                 Nothing -> putStrLn "Eingabe konnte nicht interpretiert werden. Bitte erneut eingeben." >> choiceIter
                 Just k  -> case coiceAcc k l of
                     Nothing -> putStrLn "Wahl ungültig. Bitte erneut eingeben." >> choiceIter
@@ -163,10 +164,8 @@ maybeLast [a]   = Just a
 maybeLast (_:t) = maybeLast t
 
 -- | Similar to foldM with preserved accumulated and usable interim result.
-foldUM :: Monad m => (a -> [b] -> m b) -> [a] -> m [b]
-foldUM = foldUMAux [] where
-    -- foldUMAux :: [b] -> (a -> [b] -> m b) -> [a] -> m [b]
-    foldUMAux bs _ []    = return bs
-    foldUMAux bs f (h:t) = do
-        b <- f h bs
-        foldUMAux (b : bs) f t
+foldUM :: Monad m => b' -> (b -> b' -> b') -> (a -> b' -> m b) -> [a] -> m b'
+foldUM b' _ _ []    = return b'
+foldUM b' f g (a:t) = do
+    b <- g a b'
+    foldUM (f b b') f g t
