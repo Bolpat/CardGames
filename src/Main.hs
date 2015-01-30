@@ -1,8 +1,5 @@
--- | Main entry point to the application.
-module Main where
+import Schafkopf
+import Watten
 
--- | The main entry point.
 main :: IO ()
-main = do
-    putStrLn "Welcome to FP Haskell Center!"
-    putStrLn "Have a good day!"
+main = main_Watten -- main_Schafkopf
