@@ -10,3 +10,4 @@ main = Control.Monad.join $ choiceNum "Was möchtest du spielen?"
         ("Schafkopf", main_Schafkopf),
         ("Watten",    main_Watten   )
     ]
+

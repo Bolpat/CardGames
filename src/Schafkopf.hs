@@ -260,18 +260,18 @@ main_finish GameState
     
 main_finish state @ GameState
   {
-    game = Bettel,
-    player  = Just p,
+    game   = Bettel,
+    player = Just p,
     
     playerNames,
     takenTr = (elemIndex 8 -> bettel_sieger)
   } | Just n <- bettel_sieger, n == p   = do
         putStrLn $ show (playerNames !! p) ++ " hat das Bettel gewonnen."
         main_finish_solo True  0 0 state
-    | otherwise                                     = do
+    | otherwise                         = do
         putStrLn $ show (playerNames !! p) ++ " hat das Bettel leider verloren."
         main_finish_solo False 0 0 state
-        
+    
 main_finish state @ GameState
   {
     game,
@@ -280,8 +280,8 @@ main_finish state @ GameState
     playerNames,
     score
   } = do
-    putStrLn $ 
-        (if p == 0 then "Du hast " else playerNames !! p ++ " hat ") ++ 
+    putStrLn $
+        (if p == 0 then "Du hast " else playerNames !! p ++ " hat ") ++
         show game ++
         (if | schwarz /= 0 -> " schwarz " | schneider /= 0 -> " mit Schneider " | otherwise -> "") ++
         (if playerWon then " gewonnen." else " verloren.")
@@ -292,8 +292,8 @@ main_finish state @ GameState
     
     playerWon   = playerScore > 60
     schneider, schwarz :: Int
-    schneider   = if playerScore <= 30 || contraScore <  30 then 2 else 0
-    schwarz     = if playerScore ==  0 || contraScore ==  0 then 2 else 0
+    schneider   = if playerScore <= 30 || contraScore <  30 then 5 else 0
+    schwarz     = if playerScore ==  0 || contraScore ==  0 then 5 else 0
 
 main_finish _ = error "Kein Spieler, aber kein Ramsch? Das kann nicht sein."
 
@@ -306,7 +306,7 @@ main_finish_solo True schneider schwarz GameState
     forM_ contraParty $ \i -> putStrLn $ (if i == 0 then "Du zahlst " else playerNames !! i ++ " zahlt ") ++ show spielWert ++ "."
     return ()
   where
-    spielWert = 2 + schneider + schwarz
+    spielWert = 5 + schneider + schwarz
     contraParty = [0..3] \\ [p]
     
 main_finish_solo False schneider schwarz GameState
