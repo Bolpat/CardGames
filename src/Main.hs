@@ -1,13 +1,18 @@
-import Utility (choiceNum)
+import Prelude hiding (or, and)
+import Utility.Cond
+import Utility.Choice
 import Schafkopf
 import Watten
 
+import Cards
 import Control.Monad
+import Control.Applicative
 
 main :: IO ()
-main = Control.Monad.join $ choiceNum "Was möchtest du spielen?"
-    [
-        ("Schafkopf", main_Schafkopf),
-        ("Watten",    main_Watten   )
-    ]
+main = do
+    join $ choiceNum "Was möchtest du spielen?"
+        [
+            ("Schafkopf", mainSchafkopf),
+            ("Watten",    mainWatten   )
+        ]
 

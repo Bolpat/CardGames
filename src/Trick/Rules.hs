@@ -62,33 +62,68 @@ dant rangCmp                          (Card s _) (Card s1 r1) (Card s2 r2)
     | s2 == s   = LT
     | otherwise = EQ
 
+-- | DantRule used for nearly any game type.
+tenUpper :: DantRule
+tenUpper = dant $ if Ten > King then compare else cmp where
+    Ten `cmp` b   | Under <= b && b <= King   = GT
+    a   `cmp` Ten | Under <= a && a <= King   = LT
+    a   `cmp` b                               = compare a b
+
+-- | Special DantRule where 10 is ordered between 9 and U.
+tenLower :: DantRule
+tenLower = dant $ if Ten < Under then compare else cmp where
+    Ten `cmp` b   | Under <= b && b <= King   = LT
+    a   `cmp` Ten | Under <= a && a <= King   = GT
+    a   `cmp` b                               = compare a b
+
 -- | Given a trick rule, it returns which card is the trick taking one, combined with its index.
 takesTrick :: TrickRule -> [Card] -> (Card, Int)
-takesTrick _ []         = error "No card given."
-takesTrick _ (f:[])     = (f, 0)
-takesTrick rule (f:cs)  = takesTrick' 1 (f, 0) cs where
-    overbids = step rule f
+takesTrick _    []     = error "No card given."
+takesTrick _    (f:[]) = (f, 0)
+takesTrick rule (f:cs) = takesTrick' 1 (f, 0) cs where
     takesTrick' _ mx []        = mx
     takesTrick' n mx@(mxC, _) (c:cs)
         | c `overbids` mxC   = takesTrick' (n+1) (c, n) cs
         | otherwise          = takesTrick' (n+1)  mx    cs
+    overbids = step rule f
 
-    -- | Given a TrickRule and the first card in the trick, it will return True if the first card is the trick-taking one else False.
-    step :: TrickRule -> Card  ->  Card -> Card -> Bool
-    step   ([],   dnt)   fst       c d = case dnt fst c d of
-        GT -> True
-        LT -> False
-        EQ -> error "this case may not occur if the Rules are made properly."
-    step  (r:rs, dnt)    fst       c d  | res /= EQ   = (res == GT)
-                                        | otherwise   = step (rs, dnt) fst c d
-        where res = r c d
+-- | Given a TrickRule and the first card in the trick, it will return a function that returns True if the first card is the trick-taking one else False.
+step :: TrickRule -> Card  ->  Card -> Card -> Bool
+step   ([],   dnt)   f         c d = case dnt f c d of
+    GT -> True
+    LT -> False
+    EQ -> error "this case may not occur if the Rules are made properly (or c and d are identical - even if then it may not occur also)"
+step  (r:rs, dnt)    f       c d  | res /= EQ   = (res == GT)
+                                  | otherwise   = step (rs, dnt) f c d
+    where res = r c d
 
 -- | Sorts Cards (e. g. on the display) by the given TrickRule.
 -- | Not good for trick testing because: here it is a linear order on all cards, but trick testing is NOT a linear order.
+{-
 sortTR :: TrickRule -> [Card] -> [Card]
 sortTR = sortBy . cmpTR where
-    cmpTR :: TrickRule -> Card -> Card -> Ordering
+    cmpTR :: TrickRule -> (Card -> Card -> Ordering)
     cmpTR ([],   _) (Card s1 r1) (Card s2 r2) | res == EQ   = compare r1 r2
                                               | otherwise   = res   where res = compare s1 s2
     cmpTR (r:_ , _)  c1           c2          | res /= EQ   = res   where res = r c1 c2
     cmpTR (_:rs, d)  c1           c2                        = cmpTR (rs, d) c1 c2
+-}
+sortTR :: TrickRule -> [Card] -> [Card]
+{-
+sortTR (rs, _) = (sortBy . cmpTR) rs where
+    cmpTR :: [TrumpRule] -> (Card -> Card -> Ordering)
+    cmpTR []      (Card s1 r1) (Card s2 r2) | res == EQ   = compare r1 r2
+                                            | otherwise   = res   where res = compare s1 s2
+    cmpTR (r: _)  c1           c2           | res /= EQ   = res   where res = r c1 c2
+    cmpTR (_:rt)  c1           c2                         = cmpTR rt c1 c2
+-}
+sortTR tr = sortTRBy tr suit rank
+
+sortTRBy :: (Ord a, Ord b) => TrickRule -> (Card -> a) -> (Card -> b) -> [Card] -> [Card]
+sortTRBy (tr, _) f g = (sortBy . cmpTR) tr where
+    cmpTR :: [TrumpRule] -> (Card -> Card -> Ordering)
+    cmpTR []      c1 c2 | res == EQ   = compareBy g c1 c2
+                        | otherwise   = res   where res = compareBy f c1 c2
+    cmpTR (r: _)  c1 c2 | res /= EQ   = res   where res = r c1 c2
+    cmpTR (_:rt)  c1 c2               = cmpTR rt c1 c2
+    compareBy f a b = f a `compare` f b

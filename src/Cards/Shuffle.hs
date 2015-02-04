@@ -22,8 +22,7 @@ getCards dc plc cpp = do
     let mixedCards = iterApp getRemoveIndex indcs allC
     return $ hands plc mixedCards
       where
-        hands n cs = if n < 1 then [] else
-                        (take cpp cs) : (hands (n-1) (drop cpp cs))
+        hands n cs = if n < 1 then [] else take cpp cs : hands (n-1) (drop cpp cs)
 
 
 -- | Applies an indexing function to an index list and a arbitrary separation list.
@@ -43,4 +42,4 @@ getRandIndces (subtract 1 -> n) = (:) <$> randomRIO (0, n) <*> getRandIndces n
 
 -- | Returns the indexed element and the given list with the indexed element removed.
 getRemoveIndex :: Int -> [a] -> (a, [a])
-getRemoveIndex n (splitAt n -> (xh, xt)) = (head xt, xh ++ (tail xt))
+getRemoveIndex n (splitAt n -> (xh, xt)) = (head xt, xh ++ drop 1 xt)

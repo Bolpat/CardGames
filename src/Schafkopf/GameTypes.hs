@@ -2,29 +2,31 @@
 
 -- || Implements the Rules for Schafkopf ||--
 
-module Schafkopf.GameTypes where
+module Schafkopf.GameTypes
+        (
+            module Trick.Rules,
+            
+            PlayRule,
+            normalTR, wenzTR, geierTR, habichtTR, bettelTR, alteTreuTR,
+            farbsoloTR, farbWenzTR, farbGeierTR, farbHabichtTR,
+            cardAllowed, cardAllowedRS, playerRulesRS, mayCallRS,
+            GameType(..),
+            normalTrumps, officers, alteTreue, soloTrumps,
+            trumps, trickRule
+        )
+    where
+
+import Prelude hiding ((||), (&&), not, or, and)
 
 import Cards
 import Trick.Rules
 import Utility
 import Utility.Cond
 
-import Prelude hiding ((||), (&&), not, or, and)
 import Data.List
 import Control.Applicative
 
 -- type TrickRule = ([TrumpRule], DantRule) -- defined in module "Rules"
-
--- | DantRule used for nearly any game type.
-tenUpper :: DantRule
-tenUpper = dant compare
-
--- | Special DantRule where 10 is ordered between 9 and U.
-tenLower :: DantRule
-tenLower = dant cmp where
-    Ten `cmp` b   | Under <= b && b <= King   = LT
-    a   `cmp` Ten | Under <= a && a <= King   = GT
-    a   `cmp` b                               = compare a b
 
 -- | Some predefined Tricking Rules
 normalTR, wenzTR, geierTR, habichtTR, bettelTR, alteTreuTR :: TrickRule
@@ -64,10 +66,10 @@ type PlayRule = Maybe Card -> Card -> Bool
 --             trumps       first    the card
 cardAllowed :: [Card] -> Maybe Card -> Card -> Bool   -- = [Cards] -> PlayRule
 cardAllowed     _         Nothing        _    =  True
-cardAllowed     trumps    (Just f)       c
-    | f `elem` trumps      =  c `elem` trumps
-    | c `elem` trumps      =  False
-    | otherwise            =  suit c == suit f
+cardAllowed     ts        (Just f)       c
+    | f `elem` ts   =  c `elem` ts
+    | c `elem` ts   =  False
+    | otherwise     =  suit c == suit f
 
 -- | This is for Rufspiel game type. It is THE exception from the rule above.
 -- | Given the called suit, the number of this suited cards at the beginning of the game w/o trumps, the player's hand,
@@ -77,49 +79,53 @@ cardAllowed     trumps    (Just f)       c
 --              called   num    hand    trumps       first     the card
 cardAllowedRS :: Suit -> Int -> Hand -> [Card] -> (Maybe Card -> Card -> Bool) -- = Suit -> Int -> [Card] -> [Card] PlayRule
 
-cardAllowedRS    s       num    hand    trumps       first       card
-    | (Card s Ace) `notElem` hand   = cardAllowed trumps first card
+cardAllowedRS    s      _num    hand    ts           first       card
+    | (Card s Ace) `notElem` hand   = cardAllowed ts first card
 
-cardAllowedRS    s       num    hand    trumps      Nothing      card
-    | card `elem` trumps   = True
+cardAllowedRS    s       num   _hand    ts          Nothing      card
     | suit card /= s       = True
+    | card `elem` ts       = True
     | card == Card s Ace   = True
     | otherwise            = num >= 4
 
-cardAllowedRS    s       num    hand    trumps    (Just first)   card
-    | first `elem` trumps = if
-        | card `elem` trumps   -> True
+cardAllowedRS    s      _num    hand    ts        (Just first)   card
+    | first `elem` ts = if
+        | card `elem` ts       -> True
         | card == calledAce    -> False
-        | otherwise            -> all (`notElem` trumps) hand
+        | otherwise            -> all (`notElem` ts) hand
     | suit first == s      = card == calledAce
     | card == calledAce    = False
-    | all ((`notElem` trumps) && suit $/= s) hand = True
+    | all ((`notElem` ts) && suit $/= s) hand = True
     | otherwise            = suit card == suit first
-    where calledAce = Card s Ace
-
--- | List of callable Suits.
-callableSuits :: [Suit]
-callableSuits = [Acorns, Leaves, Bells]
+  where calledAce = Card s Ace
 
 -- | Auto-generates rule for each player given the called Suit and the player's hands.
 playerRulesRS :: Suit -> [Hand] -> [Hand -> PlayRule]
+{-
 playerRulesRS s [h1, h2, h3, h4]
     | called `elem` h1   = [rsRule h1, nrmRule,   nrmRule,   nrmRule  ]
     | called `elem` h2   = [nrmRule,   rsRule h2, nrmRule,   nrmRule  ]
     | called `elem` h3   = [nrmRule,   nrmRule,   rsRule h3, nrmRule  ]
     | called `elem` h4   = [nrmRule,   nrmRule,   nrmRule,   rsRule h4]
-    | otherwise          = error $ "Ace of " ++ show s ++ "doesn't appear in any hand!"
-    where called = Card s Ace
-          nrmRule  = const $ cardAllowed normalTrumps
-          rsRule h = \hand -> cardAllowedRS s (num h) hand normalTrumps
-          num      = countBy  $  suit $== s  &&  (`notElem` normalTrumps)
+    | otherwise          = error $ show (Card s Ace) ++ "doesn't appear in any hand!"
+    where called        = Card s Ace
+          nrmRule       = const $ cardAllowed normalTrumps
+          rsRule h hand = cardAllowedRS s (num h) hand normalTrumps
+          num           = countBy  $  suit $== s  &&  (`notElem` normalTrumps)
           -- num h    = countBy (\c  ->  suit c == s  &&  c `notElem` normalTrumps) h
+-}
+playerRulesRS s hs = replicate (length f) nrmRule ++ [rsRule h] ++ replicate (length t) nrmRule where
+    (f, h:t)      = splitWhere (called `elem`) hs
+    called        = Card s Ace
+    nrmRule       = const $ cardAllowed normalTrumps
+    rsRule h0 hd = cardAllowedRS s (num h0) hd normalTrumps
+    num           = countBy  $  suit $== s  &&  (`notElem` normalTrumps)
 
 -- | Checks if a payer may call the Ace of Acorns, Leaves or Bells.
 --           trumps    hand  Acorns Leaves Bells
-mayCallRS :: [Card] -> Hand ->    [  Bool  ]
-mayCallRS trumps ((\\ trumps) -> hand) = mayCall <$> callableSuits where
-    mayCall :: Suit -> Bool
+mayCallRS :: [Card]   -> Hand   ->    [  Bool  ]
+mayCallRS    ts   ((\\ ts) -> hand) = mayCall <$> suits where
+    -- mayCall :: Suit -> Bool
     -- mayCall s = Card s Ace `notElem` hand  &&  any ((s ==).suit) hand
     mayCall s = notElem (Card s Ace) && any (suit $== s) $ hand
 
@@ -215,3 +221,31 @@ instance Ord GameType where
     
     BettelBrett         `compare` BettelBrett       = EQ
     BettelBrett         `compare` _                 = LT
+
+trickRule :: GameType -> TrickRule
+trickRule  Ramsch            = normalTR
+trickRule (Rufspiel      _)  = normalTR
+trickRule  Bettel            = bettelTR
+trickRule  AlteTreu          = alteTreuTR
+trickRule (Habicht (Just s)) = farbHabichtTR s
+trickRule (Geier   (Just s)) = farbGeierTR   s
+trickRule (Wenz    (Just s)) = farbWenzTR    s
+trickRule (Habicht Nothing)  = ([maxR King],  tenUpper)
+trickRule (Geier   Nothing)  = ([maxR Over],  tenUpper)
+trickRule (Wenz    Nothing)  = ([maxR Under], tenUpper)
+trickRule (Solo          s)  = farbsoloTR    s
+trickRule  BettelBrett       = bettelTR
+
+trumps :: GameType -> [Card]
+trumps  Ramsch              = normalTrumps
+trumps (Rufspiel      _)    = normalTrumps
+trumps  Bettel              = []
+trumps  AlteTreu            = alteTreue
+trumps (Habicht (Just s))   = (flip Card King  <$> suits) ++ (Card s <$> ranks)
+trumps (Geier   (Just s))   = (flip Card Over  <$> suits) ++ (Card s <$> ranks)
+trumps (Wenz    (Just s))   = (flip Card Under <$> suits) ++ (Card s <$> ranks)
+trumps (Habicht Nothing)    =  flip Card King  <$> suits
+trumps (Geier   Nothing)    =  flip Card Over  <$> suits
+trumps (Wenz    Nothing)    =  flip Card Under <$> suits
+trumps (Solo          s)    = soloTrumps s
+trumps BettelBrett          = []

@@ -1,11 +1,13 @@
-{-# LANGUAGE CPP, ViewPatterns, MultiWayIf, TupleSections, TemplateHaskell, NamedFieldPuns #-}
+{-# LANGUAGE CPP, ViewPatterns, MultiWayIf, TupleSections, NamedFieldPuns #-}
 
 module Schafkopf where
 
 import Utility
+import Utility.Choice
 import Utility.Cond
+
 import Cards
-import qualified Cards.Parse
+import qualified Cards.Parse as Parse
 import Cards.Shuffle
 
 import Trick.Rules
@@ -19,22 +21,23 @@ import Data.List hiding (and, or)
 
 import Control.Monad
 import Control.Applicative
+import Control.Exception
 
-main_Schafkopf :: IO ()
-main_GameChoice :: [Bool] -> GameState -> IO ()
-main_play :: GameState -> IO ()
-main_finish :: GameState -> IO ()
-main_finish_solo :: Bool -> Int -> Int -> GameState -> IO ()
+mainSchafkopf :: IO ()
+mainGameChoice :: [Bool] -> GameState -> IO ()
+mainPlay   :: GameState -> IO ()
+mainFinish :: GameState -> IO ()
+mainFinishSolo :: Bool -> Int -> Int -> GameState -> IO ()
 
-main_Schafkopf = do
+mainSchafkopf = do
     (map $ sortTR normalTR -> hs @ (h0:_)) <- getCards 1 4 8 -- 1 deck, 4 players, 8 cards each
     
     putStrLn $ "Dein Blatt: " ++ showListNatural h0
     putStrLn ""
     
     case elemIndex officers hs of -- here we use that hs are sorted (sortTR)
-        Just 0 ->  putStrLn "Du hast einen Sie. Herzlichen Glückwunsch!" >> main_Schafkopf
-        Just i -> (putStrLn $ "Spieler " ++ show i ++ " hat einen Sie. Neues Spiel.") >> main_Schafkopf
+        Just 0 -> putStrLn  "Du hast einen Sie. Herzlichen Glückwunsch!"            >> mainSchafkopf
+        Just i -> putStrLn ("Spieler " ++ show i ++ " hat einen Sie. Neues Spiel.") >> mainSchafkopf
         Nothing ->  return ()
     
     let canCall = mayCallRS normalTrumps h0
@@ -51,24 +54,25 @@ main_Schafkopf = do
     let state = AI.overbid hs _g -- this + expr above can be (AI.overbid hs -> state) <- (expr above)
     
     case player state of
-        Just 0  -> (putStrLn $ "Du darfst spielen.")                                           >> main_GameChoice canCall state
-        Just n  -> (putStrLn $ "Spieler " ++ show n ++ " spielt " ++ show (game state) ++ ".") >> main_play state
-        Nothing -> (putStrLn "Wir spielen einen Ramsch.")                                      >> main_play state
+        Just 0  -> putStrLn   "Du darfst spielen."                                           >> mainGameChoice canCall state
+        Just n  -> putStrLn ("Spieler " ++ show n ++ " spielt " ++ show (game state) ++ ".") >> mainPlay state
+        Nothing -> putStrLn "Wir spielen einen Ramsch."                                      >> mainPlay state
 
 -- Rufspiel
-main_GameChoice canCall state @ GameState { hands, game = Rufspiel _ } = do
-    let zSuits = ZipList $ zipFilter (const <$> canCall) callableSuits
-    calledSuit <- choiceAlpha "Wähle eine Farbe:" $ getZipList $ (,) <$> (show <$> zSuits) <*> zSuits
+mainGameChoice canCall state @ AI.GameState { hands, game = Rufspiel _ } = do
+    let sts = zipPred canCall suits
+    calledSuit <- choiceAlpha "Wähle eine Farbe:" $ zip (show <$> sts) sts
+    
     let newState = state
             {
                 game    = Rufspiel calledSuit,
                 rules   = playerRulesRS calledSuit hands,
                 trRule  = normalTR
             }
-    main_play newState
+    mainPlay newState
 
 -- Farbwenz
-main_GameChoice _ state @ (game -> Wenz (Just _)) = do
+mainGameChoice _ state @ (game -> Wenz (Just _)) = do
     let zSuits = ZipList suits
     calledSuit <- choiceAlpha "Wähle eine Farbe:" $ getZipList $ (,) <$> (show <$> zSuits) <*> zSuits
     let game = Wenz $ Just calledSuit
@@ -77,12 +81,12 @@ main_GameChoice _ state @ (game -> Wenz (Just _)) = do
             {
                 game,
                 rules   = replicate 4 $ const $ cardAllowed $ trumps game,
-                trRule  = gameRule game
+                trRule  = trickRule game
             }
-    main_play newState
-    
+    mainPlay newState
+
 -- Farbsolo
-main_GameChoice _ state @ (game -> Solo _) = do
+mainGameChoice _ state @ (game -> Solo _) = do
     let zSuits = ZipList suits
     calledSuit <- choiceAlpha "Wähle eine Farbe:" $ getZipList $ (,) <$> (show <$> zSuits) <*> zSuits
     let game = Solo calledSuit
@@ -90,96 +94,83 @@ main_GameChoice _ state @ (game -> Solo _) = do
             {
                 game,
                 rules   = replicate 4 $ const $ cardAllowed $ trumps game,
-                trRule  = gameRule game
+                trRule  = trickRule game
             }
-    main_play newState
-    
+    mainPlay newState
+
 -- Alle anderen Spiele (Wenz, ...) nichts zu tun.
-main_GameChoice _ state = main_play state
+mainGameChoice _ state = mainPlay state
 
-main_play state = do
-    --state2 <- foldUM state const (\_ y -> trick y) [1::Int .. 8]
-    state2 <- foldUM state const (const trick) [1::Int .. 8]
-    {-
-    state <- trick state
-    state <- trick state
-    state <- trick state
-    state <- trick state
-    
-    state <- trick state
-    state <- trick state
-    state <- trick state
-    state <- trick state
-    -}
+mainPlay st = do
+    state <- foldUM st const (const trick) [1::Int .. 8]
     putStrLn ""
-    main_finish state2
+    mainFinish state
+  where
+    -- trick :: GameState -> IO GameState
+    trick GameState { hands = [] }   = error "This shall not occur."
+    trick GameState { rules = [] }   = error "This shall not occur."
+    trick state @ GameState
+            {
+                playerNames,
+                no,
+                hands   = hs @ (h0:_),
+                score,
+                takenTr,
+                rules   = rs @ (r0:_),
+                trRule,
+                condRS
+            } = do
+        (reverse -> playedCards) <- foldUM [] (:) giveBy [0 .. 3]
+        let (crd, add no mod 4 -> plNo) = takesTrick trRule playedCards
+            
+        let scr = sum $ cardScore <$> playedCards
+        let newScores = addSc plNo score scr
+        let newTricks = addSc plNo takenTr 1
+            
+        putStrLn $ if plNo == 0 then "Deine Karte macht den Stich mit " ++ show scr ++ " Augen."
+                                else show crd ++ " von " ++ playerNames !! plNo ++ " gewinnt den Stich mit " ++ show scr ++ " Augen."
+        putStrLn ""
+        putStrLn ""
+            
+        return state
+            {
+                no      = plNo,
+                hands   = filter (`notElem` playedCards) <$> hs,
+                score   = newScores,
+                takenTr = newTricks,
+                rules   = if condRS (head playedCards)
+                            then replicate 4 $ const $ cardAllowed normalTrumps
+                            else rs
+            }
       where
-        -- trick :: GameState -> IO GameState
-        trick GameState { hands = [] }   = error "This shall not occur."
-        trick GameState { rules = [] }   = error "This shall not occur."
-        trick state @ GameState
-                {
-                    playerNames,
-                    no,
-                    hands   = hs @ (h0:_),
-                    score,
-                    takenTr,
-                    rules   = rs @ (r0:_),
-                    trRule  = trRule,
-                    condRS
-                } = do
-            playedCards <- foldUM [] (:) giveBy [0..3]
-            let first = last playedCards
+        suitChars = ['s', 'h', 'g', 'e']
+        rankChars = ['7', '8', '9', 'U', 'O', 'K', 'X', 'A']
+        readCard = Parse.readCard suitChars rankChars
             
-            let (crd, add no mod 4 -> plNo) = takesTrick trRule (reverse playedCards)
+        giveBy = giveBy' . add no mod 4
+        giveBy' 0 t = do -- Player 0 is human player
+            putStrLn   "Du hast die folgenden Karten:"
+            putStrLn $ showListNatural h0
+            putStrLn $ if null t then "Du darfst mit folgenden Karten herauskommen:" else "Du darfst die folgenden Karten ausspielen:"
+            putStrLn $ showListNatural availableCards
             
-            let scr = sum $ cardScore <$> playedCards
-            let newScores = addSc plNo score scr
-            let newTricks = addSc plNo takenTr 1
-
-            putStrLn $ if plNo == 0 then "Deine Karte macht den Stich mit " ++ show scr ++ " Augen."
-                                    else show crd ++ " von " ++ playerNames !! plNo ++ " gewinnt den Stich mit " ++ show scr ++ " Augen."
-            putStrLn ""
-            putStrLn ""
-
-            return state
-                {
-                    no      = plNo,
-                    hands   = filter (`notElem` playedCards) <$> hs,
-                    score   = newScores,
-                    takenTr = newTricks,
-                    rules   = if condRS first
-                                then replicate 4 $ const $ cardAllowed normalTrumps
-                                else rs
-                }
+            readCard "Welche Karte soll es sein?"
+                `untilM` ((`elem` h0),             putStrLn "Du hast diese Karte nicht.")
+                `untilM` ((`elem` availableCards), putStrLn "Diese Karte darfst du nicht ausspielen.")
           where
-            suitChars = ['s', 'h', 'g', 'e']
-            rankChars = ['7', '8', '9', 'U', 'O', 'K', 'X', 'A']
-            readCard = Cards.Parse.readCard suitChars rankChars
+            availableCards = if null r then h0 else r
+            r = filter (r0 h0 $ maybeLast t) h0
+        giveBy' n t = do
+            c <- AI.play t availableCards state
+            putStrLn $ (playerNames !! n) ++ (if null t then " kommt mit " ++ show c ++ " heraus." else " gibt " ++ show c ++ " zu.")
+            return c
+          where
+            hn = hs !! n
+            rn = rs !! n
+            av = filter (rn hn $ maybeLast t) hn
+            availableCards = if null av then hn else av -- Salvatorische Klausel
 
-            giveBy = giveBy' . add no mod 4
-            giveBy' 0 t = do -- Player 0 is human player
-                putStrLn $ "Du hast die folgenden Karten:"
-                putStrLn $ showListNatural h0
-                putStrLn $ if null t then "Du darfst mit folgenden Karten herauskommen:" else "Du darfst die folgenden Karten ausspielen:"
-                putStrLn $ showListNatural availableCards
-                (readCard $ "Welche Karte soll es sein?")
-                    `untilM` ((`elem` h0),             putStrLn "Du hast diese Karte nicht.")
-                    `untilM` ((`elem` availableCards), putStrLn "Diese Karte darfst du nicht ausspielen.")
-              where
-                availableCards = if null r then h0 else r
-                r = filter (r0 h0 $ maybeLast t) h0
-            giveBy' n t = do
-                c <- AI.play t state availableCards
-                putStrLn $ (playerNames !! n) ++ (if null t then " kommt mit " ++ show c ++ " heraus." else " gibt " ++ show c ++ " zu.")
-                return c
-              where
-                hn = hs !! n
-                rn = rs !! n
-                av = filter (rn hn $ maybeLast t) hn
-                availableCards = if null av then hn else av -- Salvatorische Klausel
-
-main_finish GameState
+mainFinish GameState
   {
     game    = Rufspiel _,
     
@@ -216,7 +207,7 @@ main_finish GameState
                         ++ show ((2 :: Int) + schneider + schwarz) ++ "."
                  | otherwise              = (if n == 0 then "Du zahlst " else playerNames !! n ++ " zahlt ")
                         ++ show ((2 :: Int) + schneider + schwarz) ++ "."
-main_finish GameState
+mainFinish GameState
   {
     game = Ramsch,
     
@@ -258,7 +249,7 @@ main_finish GameState
                             [EQ, EQ, EQ] -> [0, 0,  0,  0]
                             _            -> error "This shall not occur. The list is not 3 long or not ordered."
     
-main_finish state @ GameState
+mainFinish state @ GameState
   {
     game   = Bettel,
     player = Just p,
@@ -267,12 +258,12 @@ main_finish state @ GameState
     takenTr = (elemIndex 8 -> bettel_sieger)
   } | Just n <- bettel_sieger, n == p   = do
         putStrLn $ show (playerNames !! p) ++ " hat das Bettel gewonnen."
-        main_finish_solo True  0 0 state
+        mainFinishSolo True  0 0 state
     | otherwise                         = do
         putStrLn $ show (playerNames !! p) ++ " hat das Bettel leider verloren."
-        main_finish_solo False 0 0 state
+        mainFinishSolo False 0 0 state
     
-main_finish state @ GameState
+mainFinish state @ GameState
   {
     game,
     player = Just p,
@@ -285,7 +276,7 @@ main_finish state @ GameState
         show game ++
         (if | schwarz /= 0 -> " schwarz " | schneider /= 0 -> " mit Schneider " | otherwise -> "") ++
         (if playerWon then " gewonnen." else " verloren.")
-    main_finish_solo playerWon schneider schwarz state
+    mainFinishSolo playerWon schneider schwarz state
   where
     playerScore = score !! p
     contraScore = 120 - playerScore
@@ -295,9 +286,9 @@ main_finish state @ GameState
     schneider   = if playerScore <= 30 || contraScore <  30 then 5 else 0
     schwarz     = if playerScore ==  0 || contraScore ==  0 then 5 else 0
 
-main_finish _ = error "Kein Spieler, aber kein Ramsch? Das kann nicht sein."
+mainFinish _ = error "Kein Spieler, aber kein Ramsch? Das kann nicht sein."
 
-main_finish_solo True schneider schwarz GameState
+mainFinishSolo True schneider schwarz GameState
   {
     player = Just p,
     playerNames
@@ -309,7 +300,7 @@ main_finish_solo True schneider schwarz GameState
     spielWert = 5 + schneider + schwarz
     contraParty = [0..3] \\ [p]
     
-main_finish_solo False schneider schwarz GameState
+mainFinishSolo False schneider schwarz GameState
   {
     player = Just p,
     playerNames
@@ -320,3 +311,5 @@ main_finish_solo False schneider schwarz GameState
   where
     spielWert = 2 + schneider + schwarz
     contraParty = [0..3] \\ [p]
+
+mainFinishSolo _ _ _ _ = error "Solo without player..."

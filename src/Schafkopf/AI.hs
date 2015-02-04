@@ -1,6 +1,11 @@
-{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns, ViewPatterns, MultiWayIf #-}
 
-module Schafkopf.AI where
+module Schafkopf.AI (GameState(..),
+                     trumps,
+                     trickRule,
+                     
+                     play,
+                     overbid) where
 
 import Utility
 import Utility.Cond
@@ -15,7 +20,7 @@ import Schafkopf.GameTypes
 import Prelude hiding ((||), (&&), not, or, and)
 import Control.Applicative
 import Data.List
---import Data.Maybe
+
 
 data GameState = GameState
     {
@@ -48,7 +53,6 @@ instance Show GameState where
     show GameState
         {
             playerNames,
-            no,
             player,
             mate,
             game,
@@ -63,60 +67,36 @@ instance Show GameState where
         "Mitspieler: " ++ (case mate of Nothing -> "Niemand"; Just n -> playerNames!!n) ++ "\n" ++
         (concat $ map playerdata [0..3])
       where
-        playerdata n = 
+        playerdata n =
             (playerNames !! n) ++ ": \n" ++
             " Hand:         " ++ showListNatural (hands !! n) ++ "\n" ++
             " Score:        " ++ show (score   !! n) ++ "\n" ++
             " Taken Tricks: " ++ show (takenTr !! n) ++ "\n" ++
             " Win/Loss:     " ++ show (balance !! n) ++ "\n"
 
-nullState :: GameState
-nullState = GameState
+defaultState :: [Hand] -> [Card] -> GameState
+defaultState hands ts = GameState
     {
         playerNames = ["Du", "Alex", "Bernhard", "Caroline"],
+        no          = 0,
+        game        = Ramsch,
+        player      = Just 0,
+        mate        = Nothing,
+        hands,
+        rules       = replicate 4 $ const $ cardAllowed ts,
+        trRule      = normalTR,
+        condRS      = const False,
+
         score       = replicate 4 0,
         takenTr     = replicate 4 0,
         balance     = replicate 4 0
     }
 
-defaultState :: [Hand] -> [Card] -> GameState
-defaultState hands trumps = nullState
-    {
-        mate        = Nothing,
-        hands,
-        rules       = replicate 4 $ const $ cardAllowed trumps,
-        trRule      = normalTR,
-        condRS      = const False
-    }
-
-gameRule :: GameType -> TrickRule
-gameRule  Ramsch            = normalTR
-gameRule (Rufspiel      s)  = normalTR
-gameRule  Bettel            = bettelTR
-gameRule (Habicht (Just s)) = farbHabichtTR s
-gameRule (Geier   (Just s)) = farbGeierTR   s
-gameRule (Wenz    (Just s)) = farbWenzTR    s
-gameRule (Habicht Nothing)  = ([maxR King],  tenUpper)
-gameRule (Geier   Nothing)  = ([maxR Over],  tenUpper)
-gameRule (Wenz    Nothing)  = ([maxR Under], tenUpper)
-gameRule (Solo          s)  = farbsoloTR    s
-gameRule  BettelBrett       = bettelTR
-
-trumps :: GameType -> [Card]
-trumps  Ramsch              = normalTrumps
-trumps (Rufspiel      _)    = normalTrumps
-trumps  Bettel              = []
-trumps (Habicht (Just s))   = (flip Card King  <$> suits) ++ (Card s <$> ranks)
-trumps (Geier   (Just s))   = (flip Card Over  <$> suits) ++ (Card s <$> ranks)
-trumps (Wenz    (Just s))   = (flip Card Under <$> suits) ++ (Card s <$> ranks)
-trumps (Habicht Nothing)    =  flip Card King  <$> suits
-trumps (Geier   Nothing)    =  flip Card Over  <$> suits
-trumps (Wenz    Nothing)    =  flip Card Under <$> suits
-trumps (Solo          s)    =  officers
 
 overbid :: [Hand] -> GameType -> GameState
 overbid = stupidOverbid
 
+stupidOverbid :: [Hand] -> GameType -> GameState
 stupidOverbid hs Ramsch = (defaultState hs normalTrumps)
     {
         no          = 0,
@@ -124,12 +104,11 @@ stupidOverbid hs Ramsch = (defaultState hs normalTrumps)
         game        = Ramsch
     }
 
-stupidOverbid hands game@(Rufspiel calledSuit) = nullState
+stupidOverbid hands game@(Rufspiel calledSuit) = (defaultState hands normalTrumps)
     {
         no          = 0,
         player      = Just 0,
         mate        = findIndex (elem $ Card calledSuit Ace) hands,
-        hands,
         game        = game,
         rules       = playerRulesRS calledSuit hands,
         condRS      = flip notElem normalTrumps && suit $== calledSuit
@@ -142,12 +121,26 @@ stupidOverbid hs game = (defaultState hs $ trumps game)
         mate        = Nothing,
         game        = game,
         hands       = hs,
-        trRule      = gameRule game
+        trRule      = trickRule game
     }
 
-type Trick = [Card] -- ! reverse order: last element is first card.
-    
-play :: Trick -> GameState -> Hand -> IO Card
+type Trick = [Card]
+
+play :: Trick -> Hand -> GameState -> IO Card
 play = stupidPlay
 
-stupidPlay _ _ h = return $ head h
+stupidPlay :: Trick -> Hand -> GameState -> IO Card
+stupidPlay _ h _ = return (head h)
+
+trivialPlay :: Trick -> Hand -> GameState -> IO Card
+trivialPlay _     []  _    = error "AI cannot play a card" -- this shall NEVER occur, fault by missing savatorian clause
+trivialPlay _     [c] _    = return c
+trivialPlay trick av GameState { game }
+    | game /= Ramsch       = do
+        if trick `hasLength` 3
+            then let canOverbid = (== 4) <$> ( snd . (\c -> takesTrick (trickRule game) $ reverse (c : trick)) <$> av ) in
+                 if | trickScore trick > 8   -> return $ head $ zipPred canOverbid av
+                    | otherwise              -> return $ head av
+            else do
+                return $ head av
+    | otherwise            = return $ head av

@@ -1,16 +1,21 @@
-module Cards.Parse (readCard, readSuit, parseCard) where
+module Cards.Parse (parseHand, parseCard, readCard, readSuit, readRank) where
 
 import Cards
 
 import Data.List
+import Control.Applicative
+import Control.Monad
 
--- | Tries to parse a Card from a 2 letter notation; Nothing is returned when input is invalid.
-parseCard :: [Char] -> [Char] -> [Char] -> Maybe Card
+parseHand :: [Char] -> [Char] -> String -> Maybe Hand
+parseHand suitChars rankChars = sequence . parseHand' . words where
+    parseHand' = map $ parseCard suitChars rankChars
+
+parseCard :: [Char] -> [Char] -> String -> Maybe Card
 parseCard suitChars rankChars [s,r]
-                | Just st <- elemIndex s suitChars,
-                  Just rk <- elemIndex r rankChars
-                   = Just $ Card (toEnum st) (toEnum rk)
-parseCard  _ _ _   = Nothing
+            | Just st <- elemIndex s suitChars,
+              Just rk <- elemIndex r rankChars
+                = Just $ Card (toEnum st) (toEnum rk)
+parseCard _ _ _ = Nothing
 
 -- | Reads a Card from user input in 2 letter notation (xY) where x is the Suit and Y is the rank.
 -- | The user will be asked to repeat until the input is valid.
@@ -21,19 +26,32 @@ readCard suitChars rankChars message = do
     leseRec = do
         str <- getLine
         case parseCard suitChars rankChars str of
-            Just k  -> (putStrLn $ "Karte: " ++ show k) >> return k
-            Nothing ->  putStrLn "Zu dieser Abkürzung gibt es keine Karte. Bitte erneut eingeben." >> leseRec
+            Just k  -> putStrLn ("Karte: " ++ show k) >> return k
+            Nothing -> putStrLn "Zu dieser Abkürzung gibt es keine Karte. Bitte erneut eingeben." >> leseRec
 
-readSuit :: String -> IO Suit
-readSuit message = do
+
+readSuit :: [Char] -> String -> IO Suit
+readSuit suitChars message = do
     putStrLn message
     leseRec where
     leseRec = do
         str <- getLine
         case parseSuit str of
-            Just s  -> (putStrLn $ "Farbe: " ++ show s) >> return s
-            Nothing ->  putStrLn "Zu dieser Abkürzung gibt es keine Farbe. Bitte erneut eingeben." >> leseRec
-        where
-            parseSuit :: [Char] -> Maybe Suit
-            parseSuit [s] | Just suit <- elemIndex s "sghe"   = Just . toEnum $ suit
-            parseSuit  _                                      = Nothing
+            Just s  -> putStrLn ("Farbe: " ++ show s) >> return s
+            Nothing -> putStrLn "Zu dieser Abkürzung gibt es keine Farbe. Bitte erneut eingeben." >> leseRec
+      where
+        parseSuit [s] | Just st <- elemIndex s suitChars   = Just . toEnum $ st
+        parseSuit  _                                       = Nothing
+
+readRank :: [Char] -> String -> IO Rank
+readRank rankChars message = do
+    putStrLn message
+    leseRec where
+    leseRec = do
+        str <- getLine
+        case parseRank str of
+            Just r  -> putStrLn ("Rang: " ++ show r) >> return r
+            Nothing -> putStrLn "Zu dieser Abkürzung gibt es keine Farbe. Bitte erneut eingeben." >> leseRec
+      where
+        parseRank [r] | Just st <- elemIndex r rankChars   = Just . toEnum $ st
+        parseRank  _                                       = Nothing

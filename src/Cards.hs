@@ -49,7 +49,7 @@
 #define LANG        DEU
 #define SUITS       DEU
 #define RANKS       RANKS_7_10
-#define RANKORDER   HIGH_10
+#define RANKORDER   LOW_10
 
 -- DO NOT CHANGE UNDER HERE ----------------------------------------------------
                 module Cards where

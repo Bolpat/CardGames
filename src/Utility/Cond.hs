@@ -1,16 +1,27 @@
-{-# LANGUAGE TypeFamilies #-}
-
-module Utility.Cond where
+{-# LANGUAGE TypeFamilies, RebindableSyntax #-}
+{-
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
+-}
+module Utility.Cond
+    (
+        --module Prelude hiding ((||), (&&), not, or, and)),
+        Cond, and, or, (%%), (&&), (||),
+        ($==), ($/=), (==$), (/=$), ($==$), ($/=$), ($<), ($>), ($<=), ($>=), (<$), (>$), (<=$), (>=$), ($<$), ($>$), ($<=$), ($>=$)
+    )
+where
 
 import Prelude hiding ((||), (&&), not, or, and)
 
 class Cond c where
     type Boolean c
-    toBool :: c -> Boolean c
+    --toBool :: c -> Boolean c
     fromBool :: Boolean c -> c
-    -- true, false :: Boolean c -- OK
+    true  :: c
+    false :: c
     
-    not     ::  c  -> Boolean c
+    not ::  c  -> Boolean c
     
     infixr 2 ||     -- a OR b
     infixr 3 &&     -- a AND b
@@ -22,37 +33,65 @@ class Cond c where
 
 instance Cond Bool where
     type Boolean Bool = Bool
-    toBool = id
-    fromBool = id
-    -- true  = True -- OK
-    -- false = False -- OK
-    
-    not x     = if x then False else True
-    
-    p || q    = if p then True else q
-    p && q    = if p then q else False
-    p %% q    = if p then not q else q
 
-instance (Cond b) => Cond (a -> b) where
+    --toBool   = id
+    fromBool = id
+    true  = True
+    false = False
+    
+    not True  = False
+    not False = True
+
+    False || False = False
+    _     || _     = True
+    
+    True  && True  = True
+    _     && _     = False
+    
+    True  %% False = True
+    False %% True  = True
+    _     %% _     = False
+
+instance Cond b => Cond (a -> b) where
     type Boolean (a -> b) = a -> Boolean b
-    toBool f a = toBool $ f a
+
+    --toBool   f a = toBool   $ f a
     fromBool f a = fromBool $ f a
-    -- true  a = const (true  :: Boolean b) a -- doesn't like it
-    -- false a = undefined -- doesn't like it
+    true  = const true -- const (true :: b) a -- doesn't like it
+    false = const false -- doesn't like it
     
     not f a    = not $ f a
     
     (f || g) a = f a || g a
     (f && g) a = f a && g a
     (f %% g) a = f a %% g a
+{-
+class IfThenElse x b where
+    type Condition b
+    type Res b x
+    
+    ifThenElse :: Condition b -> x -> x -> Res b x
 
-and :: Cond c => [c] -> Boolean c
-and [c]   = toBool c
-and (h:t) = h && fromBool (and t)
+instance IfThenElse x Bool where
+    type Condition Bool = Bool
+    type Res Bool x = x
+    
+    ifThenElse True  x _ = x
+    ifThenElse False _ y = y
 
-or :: Cond c => [c] -> Boolean c
-or [c]   = toBool c
-or (h:t) = h || fromBool (and t)
+instance IfThenElse x b => IfThenElse x (a -> b) where
+    type Condition (a -> b) = a -> Condition b
+    type Res (a -> b)  x = a -> Res b x
+
+    ifThenElse c x y a = ifThenElse (c a) x y
+-}
+and :: Cond c => [c] -> c
+and []    = true
+and (h:t) = fromBool $ h && and t
+
+or :: (Cond c) => [c] -> c
+or []    = false
+or (h:t) = fromBool $ h || or t
 
 infix 4 $==, $/=, ==$, /=$, $==$, $/=$, $<, $>, $<=, $>=, <$, >$, <=$, >=$, $<$, $>$, $<=$, $>=$
 
