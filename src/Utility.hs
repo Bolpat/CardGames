@@ -57,6 +57,12 @@ splitWhere _ []             = ([], [])
 splitWhere p l@(h:t) | p h  = ([], l)
                      | ow   = let (s, r) = splitWhere p t in (h:s, r)
 
+between :: Ord a => (a, a) -> a -> Bool
+between (l, u) v = l <= v  &&  v <= u
+
+inside :: Ord a => (a, a) -> a -> Bool
+inside  (l, u) v = l <  v  &&  v <  u
+
 -- | returns a list of indices, where at any index the element of the given list is a maximal element.
 indicesOfMaxima :: Ord a => [a] -> [Int]
 indicesOfMaxima = indicesOfMaximaBy compare
@@ -95,13 +101,17 @@ countBy p = foldl' (\n x -> if p x then let n' = n+1 in n' `seq` n' else n) 0
 option :: Bool -> a -> [a]
 option p a = if p then [a] else []
 
+-- | Gets sublist by given indices.
+infix 8 !!!
+(!!!) :: [a] -> [Int] -> [a]
+l !!! []     = []
+l !!! (i:is) = l !! i : l !!! is
+
 -- | Converts a Show-List to a human readable output.
 showListNatural :: Show a => [a] -> String
-showListNatural []      = ""
-showListNatural [a]     = show a
-showListNatural [a, b]  = show a ++ " und " ++ show b
-showListNatural (a:t)   = show a ++ ", " ++ showListNatural t
+showListNatural l = concatNatural $ map show l
 
+-- | Like showListNatural, but uses 
 concatNatural :: [String] -> String
 concatNatural []      = ""
 concatNatural [a]     = a
@@ -155,7 +165,6 @@ foldUM state _ _ []    = return state
 foldUM state f g (a:t) = do
     b <- g a state
     foldUM (f b state) f g t
-
 
 foldCM :: Monad m => a -> (a -> a) -> (a -> m a) -> (a -> Bool) -> m a
 foldCM start update action cond = do

@@ -39,11 +39,13 @@ instance Show GameState where
         beginnerNo,
         no,
         score,
-        gameValue
+        gameValue,
+        bilance
       } = "Vorhand:    " ++ playerNames !! beginnerNo ++ "\n" ++
           "Ausspieler: " ++ playerNames !! no ++ "\n" ++
           "Spielstand: " ++ show score ++ "\n" ++
-          "Spielwert:  " ++ show gameValue
+          "Spielwert:  " ++ show gameValue ++ "\n" ++
+          "Bilanz:     " ++ show bilance
 
 defaultState :: Int -> GameState
 defaultState playerCount = GameState
@@ -90,6 +92,12 @@ farbe r (remove kriten -> h) = return $ case veryBestSuits of
 
     bestSuits     = suit . head <$> maximaBy sumValue eqvGroups
     veryBestSuits = suit <$> filter (rank $== r && (`elem` bestSuits) . suit) h
+
+schlagFarbe :: Hand -> IO Card
+schlagFarbe h = do
+    r <- schlag h
+    s <- farbe r h
+    return $ Card s r
 
 type Trick = [Card]
 
