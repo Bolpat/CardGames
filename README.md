@@ -14,6 +14,14 @@ The team with the most tricks wins the round and the round's value is added to t
 Usually you play until one player's score reaches 15 (or 21).
 Then this player wins the game.
 
+### Teams
+
+For 2 players there are no teams.  
+3 players have separate scores, but for every round, the dealer and the player who cut the cards are in one team.  
+In 4 player games, players sitting opposite one another build a fixed team.  
+For 5 players there is no common rule. Here it is implemented, that the dealer and the player after the dealer build one team.  
+For 6 players, players who sit next to each other or opposite one another are opponents.
+
 ### Bidding
 
 In every case the king of hearts is the highest card in the game, then secondly the seven of bells and third the seven of acorns.

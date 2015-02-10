@@ -121,9 +121,9 @@ play, stupidPlay, betterPlay :: Trick -> Hand -> GameState -> IO Card
 play t h s @ GameState { playerCount = 2 } = betterPlay t h s
 play t h s = stupidPlay t h s
 
-betterPlay [] h state = return $ head h
+betterPlay [] h state = return $ head h -- first player of trick
 betterPlay t  h GameState { playerCount, rule }
-    | length t + 1 == playerCount = do
+    | length t == playerCount - 1 = do -- last player of trick
         print t
         print $ reverse t
         let tTrR c = takesTrick rule $ reverse $ c : t
@@ -131,8 +131,9 @@ betterPlay t  h GameState { playerCount, rule }
         return $ case lookup (playerCount - 1) takerAndCard of
             Just c  -> c
             Nothing -> head h
-    | otherwise                  = do
+betterPlay t  h GameState { playerCount = 3, rule, beginnerNo, no }
+    | no == beginnerNo = do -- 3 player, first one --> solo player
         
-        undefined
+
 stupidPlay [] h state = return $ head h
 stupidPlay t  h state = return $ last h
