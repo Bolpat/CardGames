@@ -121,7 +121,7 @@ mainPlay st = do
                 condRS
             } = do
         (reverse -> playedCards) <- foldUM [] (:) giveBy [0 .. 3]
-        let (crd, add no mod 4 -> plNo) = takesTrick trRule playedCards
+        let (add no mod 4 -> plNo, crd) = takesTrick trRule playedCards
             
         let scr = sum $ cardScore <$> playedCards
         let newScores = addSc plNo score scr

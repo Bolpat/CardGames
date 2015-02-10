@@ -97,6 +97,15 @@ eqv x m b y = m x b == m y b -- eqivalent mod b
 countBy :: (a -> Bool) -> [a] -> Int
 countBy p = foldl' (\n x -> if p x then let n' = n+1 in n' `seq` n' else n) 0
 
+-- | Sums after mapping a function on the domain list.
+--   This is intended to be used with a view function like "(fromEnum . rank)" on a list of Cards.
+sumBy :: Num b => (a -> b) -> [a] -> b
+sumBy f = sum . map f
+
+-- | Calulates the product after mapping a function on the domain list. This is intended to be used with a view function.
+productBy :: Num b => (a -> b) -> [a] -> b
+productBy f = product . map f
+
 -- | Tests the given condition and returns either a singleton list with the given element, if the condition holds, else the empty list
 option :: Bool -> a -> [a]
 option p a = if p then [a] else []

@@ -77,13 +77,14 @@ tenLower = dant $ if Ten < Under then compare else cmp where
     a   `cmp` b                               = compare a b
 
 -- | Given a trick rule, it returns which card is the trick taking one, combined with its index.
-takesTrick :: TrickRule -> [Card] -> (Card, Int)
+takesTrick :: TrickRule -> [Card] -> (Int, Card)
 takesTrick _    []     = error "No card given."
-takesTrick _    (f:[]) = (f, 0)
-takesTrick rule (f:cs) = takesTrick' 1 (f, 0) cs where
+takesTrick _    (f:[]) = (0, f)
+takesTrick rule (f:cs) = takesTrick' 1 (0, f) cs where
+    takesTrick' :: Int -> (Int, Card) -> [Card] -> (Int, Card)
     takesTrick' _ mx []        = mx
-    takesTrick' n mx@(mxC, _) (c:cs)
-        | c `overbids` mxC   = takesTrick' (n+1) (c, n) cs
+    takesTrick' n mx@(_, mxC) (c:cs)
+        | c `overbids` mxC   = takesTrick' (n+1) (n, c) cs
         | otherwise          = takesTrick' (n+1)  mx    cs
     overbids = step rule f
 

@@ -138,7 +138,7 @@ trivialPlay _     [c] _    = return c
 trivialPlay trick av GameState { game }
     | game /= Ramsch       = do
         if trick `hasLength` 3
-            then let canOverbid = (== 4) <$> ( snd . (\c -> takesTrick (trickRule game) $ reverse (c : trick)) <$> av ) in
+            then let canOverbid = (== 4) <$> ( fst . (\c -> takesTrick (trickRule game) $ reverse (c : trick)) <$> av ) in
                  if | trickScore trick > 8   -> return $ head $ zipPred canOverbid av
                     | otherwise              -> return $ head av
             else do

@@ -1,9 +1,9 @@
 {-# LANGUAGE TypeFamilies, RebindableSyntax #-}
-{-
+
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE UndecidableInstances #-}
+--{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
--}
+
 module Utility.Cond
     (
         --module Prelude hiding ((||), (&&), not, or, and)),
@@ -65,26 +65,7 @@ instance Cond b => Cond (a -> b) where
     (f || g) a = f a || g a
     (f && g) a = f a && g a
     (f %% g) a = f a %% g a
-{-
-class IfThenElse x b where
-    type Condition b
-    type Res b x
-    
-    ifThenElse :: Condition b -> x -> x -> Res b x
 
-instance IfThenElse x Bool where
-    type Condition Bool = Bool
-    type Res Bool x = x
-    
-    ifThenElse True  x _ = x
-    ifThenElse False _ y = y
-
-instance IfThenElse x b => IfThenElse x (a -> b) where
-    type Condition (a -> b) = a -> Condition b
-    type Res (a -> b)  x = a -> Res b x
-
-    ifThenElse c x y a = ifThenElse (c a) x y
--}
 and :: Cond c => [c] -> c
 and []    = true
 and (h:t) = fromBool $ h && and t

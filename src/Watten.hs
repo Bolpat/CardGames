@@ -1,38 +1,39 @@
-{-# LANGUAGE ViewPatterns, NamedFieldPuns #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE ViewPatterns   #-}
 
 module Watten where
 
-import Utility
-import Utility.Cond
-import Prelude hiding ((||), (&&), not, or, and)
+import           Prelude             hiding (and, not, or, (&&), (||))
+import           Utility
+import           Utility.Cond
 
-import Cards
-import qualified Cards.Parse as Parse
-import Cards.Shuffle
+import           Cards
+import qualified Cards.Parse         as Parse
+import           Cards.Shuffle
 
-import Trick.Rules
+import           Trick.Rules
 
-import Watten.GameTypes
-import Watten.Score
-import Watten.AI (GameState(..), defaultState)
-import qualified Watten.AI as AI
+import           Watten.AI           (GameState (..), defaultState)
+import qualified Watten.AI           as AI
+import           Watten.GameTypes
+import           Watten.Score
 
-import Data.List
-import Data.Maybe
-import Control.Monad
-import Control.Applicative
-import Control.Exception
+import           Control.Applicative
+import           Control.Exception
+import           Control.Monad
+import           Data.List
+import           Data.Maybe
 
-import Debug.Trace
+import           Debug.Trace
 
 suitChars = ['s', 'h', 'g', 'e']
-rankChars = if Ten < Under then ['7', '8', '9', 'X', 'U', 'O', 'K', 'A']
-                           else ['7', '8', '9', 'U', 'O', 'K', 'X', 'A']
+rankChars = if Ten < Under then ['7', '8', '9', 'X', 'U', 'O', 'K',      'A']
+                           else ['7', '8', '9',      'U', 'O', 'K', 'X', 'A']
 
---parseHand = Parse.parseHand suitChars rankChars
-readCard  = Parse.readCard suitChars rankChars
-readRank  = Parse.readRank           rankChars
-readSuit  = Parse.readSuit suitChars
+readHand = Parse.readHand suitChars rankChars
+readCard = Parse.readCard suitChars rankChars
+readRank = Parse.readRank           rankChars
+readSuit = Parse.readSuit suitChars
 
 readInt :: String -> IO Int
 readInt m = do
@@ -43,7 +44,13 @@ readInt m = do
         Just i  -> return i
 
 mainWatten :: IO ()
-
+{-
+mainWatten = do
+    h <- readHand "Bitte Blatt eingeben"
+    r <- readRank "Schlag eingeben."
+    s <- AI.farbe r 0 GameState { playerCount = 2, hands = [h] }
+    print s
+-}
 mainWatten = trace "" $ do
     playerCount <- readInt "Bitte Spieleranzahl eingeben."
         `untilM` (between (2, 6), putStrLn "Spieleranzahl muss zwischen 2 und 6 liegen.")
@@ -51,8 +58,7 @@ mainWatten = trace "" $ do
         `untilM` (between (10, 21), putStrLn "Der Wert liegt sinnvollerweise zwischen 10 und 21.")
     GameState { bilance, playerNames } <- foldCM (defaultState playerCount) iterState playWatten (maximum . bilance $< finish)
     putStrLn ""
-    let im = indicesOfMaxima bilance
-    putStrLn $ "Gewinner:" ++ showListNatural (playerNames !!! im)
+    putStrLn $ "Gewinner:" ++ showListNatural (playerNames !!! indicesOfMaxima bilance)
   where
     iterState state @ GameState { beginnerNo, playerCount } =
         let beg = (beginnerNo + 1) `mod` playerCount in state { beginnerNo = beg, no = beg }
@@ -61,16 +67,16 @@ playWatten state @ GameState { playerCount } = do
     hands <- getCards 1 playerCount 5 -- 1 deck, given count of players, 5 cards each
     mainWattenAnsage $ state { hands }
 
-mainWattenAnsage state @ GameState { playerNames, playerCount = 3, no, hands = hands @ (h0:_) } = do
+mainWattenAnsage state @ GameState { playerNames, playerCount = 3, no, hands = hs @ (h0 : _) } = do
     Card s r <- getCard no
     let rule = bidding r s
-    mainWattebPlay state { rule, hands = sortTRBy rule rank suit <$> hands }
+    mainWattebPlay state { rule, hands = sortTRBy rule rank suit <$> hs }
   where
     getCard 0 = do
         putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordRank h0)
         readCard "Du bist dran den Hauptschlag bestimmen."
     getCard n = do
-        c <- AI.schlagFarbe (hands !! n)
+        c <- AI.schlagFarbe n state
         putStrLn $ playerNames !! n ++ " sagt " ++ show c ++ " an."
         return c
 
@@ -84,21 +90,21 @@ mainWattenAnsage state @ GameState { playerNames, playerCount, no, hands = hands
   where
     getRank 0 = do -- 0 human Player
         putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordRank h0)
-        Parse.readRank rankChars "Du bist dran den Schlag anzusagen!"
+        readRank "Du bist dran den Schlag anzusagen!"
     getRank n  = do
-        r <- AI.schlag (hands !! n)
+        r <- AI.schlag n state
         putStrLn $ playerNames !! n ++ " sagt " ++ show r ++ " als Schlag an."
         return r
-    
+
     getSuit r 0 = do
         putStrLn $ "Der angesagte Schlag ist " ++ show r ++ "."
         putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordSuit h0)
-        Parse.readSuit suitChars "Du bist dran den Trumpf anzusagen!"
+        readSuit "Du bist dran den Trumpf anzusagen!"
     getSuit r n = do
-        s <- AI.farbe r (hands !! n)
+        s <- AI.farbe r n state
         putStrLn $ playerNames !! n ++ " sagt " ++ show s ++ " als Trumpf an."
         return s
-    
+
 mainWattebPlay state = do
     state <- foldCM state id trick (maximum . score $< 3)
     putStrLn ""
@@ -106,7 +112,7 @@ mainWattebPlay state = do
   where
     trick state @ GameState { playerNames, playerCount, beginnerNo, no, rule, score, hands = hs@(h0:_) } = do
         (reverse -> playedCards) <- foldUM [] (:) giveBy [0 .. playerCount-1]
-        let (crd, add no mod playerCount -> plNo) = takesTrick rule playedCards
+        let (add no mod playerCount -> plNo, crd) = takesTrick rule playedCards
         putStrLn $ if plNo == 0 then "Deine Karte macht den Stich."
                                 else show crd ++ " von " ++ playerNames !! plNo ++ " gewinnt den Stich."
         putStrLn ""
@@ -148,11 +154,11 @@ mainFinish state @ GameState
         newBilance = addScs winner gameValue bilance
     putStrLn $ printW winner ++ " die Runde mit " ++ show gameValue ++ " Punkten für sich entschieden."
     putStrLn "Punkte:"
-    
+
     forM_ [0 .. playerCount-1] $
         putStrLn . \n -> playerNames !! n ++ ": " ++ show (newBilance !! n)
     putStrLn "\n"
-    
+
     return state { score = replicate playerCount 0, bilance = newBilance }
   where
     printW [0]          = "Du hast "

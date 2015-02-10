@@ -1,4 +1,4 @@
-{-# LANGUAGE NamedFieldPuns, ViewPatterns #-}
+{-# LANGUAGE MultiWayIf, NamedFieldPuns, ViewPatterns #-}
 
 module Watten.AI where
 
@@ -9,6 +9,7 @@ import Utility.Cond
 import Prelude hiding ((||), (&&), not, or, and)
 
 import Cards
+import Cards.Shuffle
 
 import Trick.Rules
 
@@ -16,6 +17,7 @@ import Watten.Score
 
 import Data.List
 import Control.Applicative
+import System.Random (randomRIO)
 
 data GameState = GameState
     {
@@ -65,44 +67,72 @@ defaultState playerCount = GameState
 
 remove = flip (\\)
 
-schlag :: Hand -> IO Rank
-schlag (remove kriten -> h) = return $ ranks !! i
+schlag :: Int -> GameState -> IO Rank
+schlag n GameState { hands = (remove kriten . (!! n) -> h) } = return $ ranks !! i
   where
     rankList = (countBy . (rank $==) <$> ranks) <*> pure h
     mr = maximum rankList
     Just i = elemIndex mr rankList
 
-farbe :: Rank -> Hand -> IO Suit
-farbe r (remove kriten -> h) = return $ case veryBestSuits of
-    []    -> head bestSuits
-    (s:_) -> s
+farbe :: Rank -> Int -> GameState -> IO Suit
+farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = do
+    putStr "Indices: "
+    putStrLn $ concatNatural $ zipWith (\a b -> show a ++ ": " ++ show b) suits $ (index preH) <$> suits
+    if Hearts `elem` bestSuits then return $ Hearts
+    else case bestSuits of []  -> pick suits
+                           [s] -> return s
+                           _   -> pick $ bestSuits \\ [Leaves]
   where
     preH = filter (rank $/= r) h
     
-    rValue Ace   = 11
-    rValue King  = 8
-    rValue Over  = 6
-    rValue Eight = 0
-    rValue r     = fromEnum r
-    sumValue     = sum . map ((10 +) . rValue . rank)
+    cc n = if playerCount >= n then 1 else 0
+    v Seven = 0
+    v Eight = 0
+    v Nine  = 2
+    v Ten   = 3
+    v Under = 4 + cc 6
+    v Over  = 5 + cc 4 + cc 6 + cc 6
+    v King  = 5 + playerCount + cc 6 - cc 3 -- minus is correct here
+    v Ace   = 7 + playerCount + cc 5 + cc 6
     
-    suitCmp c d = suit c `compare` suit d
-    suitEq  c d = suit c == suit d
-    eqvGroups   = groupBy suitEq . sortBy suitCmp $ preH
+    rkCnt Seven = 2
+    rkCnt King  = 3
+    rkCnt _     = 4
+    
+    bonus s | Card s r `elem` h   = 2 * (rkCnt r - countBy (rank $== r) h)
+            | otherwise           = 0
+    
+    sumValue = sumBy $ v . rank
 
-    bestSuits     = suit . head <$> maximaBy sumValue eqvGroups
-    veryBestSuits = suit <$> filter (rank $== r && (`elem` bestSuits) . suit) h
+    index :: Hand -> Suit -> Int
+    index = flip index' where index' s (filter (suit $== s) -> hd) = sumValue hd + bonus s
 
-schlagFarbe :: Hand -> IO Card
-schlagFarbe h = do
-    r <- schlag h
-    s <- farbe r h
+    bestSuits = maximaBy (index preH) suits
+
+schlagFarbe :: Int -> GameState -> IO Card
+schlagFarbe n state = do
+    r <- schlag n state
+    s <- farbe r n state
     return $ Card s r
 
 type Trick = [Card]
 
-play, stupidPlay :: Trick -> Hand -> GameState -> IO Card
-play = stupidPlay
+play, stupidPlay, betterPlay :: Trick -> Hand -> GameState -> IO Card
+play t h s @ GameState { playerCount = 2 } = betterPlay t h s
+play t h s = stupidPlay t h s
 
+betterPlay [] h state = return $ head h
+betterPlay t  h GameState { playerCount, rule }
+    | length t + 1 == playerCount = do
+        print t
+        print $ reverse t
+        let tTrR c = takesTrick rule $ reverse $ c : t
+        let takerAndCard = tTrR <$> h
+        return $ case lookup (playerCount - 1) takerAndCard of
+            Just c  -> c
+            Nothing -> head h
+    | otherwise                  = do
+        
+        undefined
 stupidPlay [] h state = return $ head h
 stupidPlay t  h state = return $ last h
