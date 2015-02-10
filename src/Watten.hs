@@ -44,13 +44,10 @@ readInt m = do
         Just i  -> return i
 
 mainWatten :: IO ()
-{-
-mainWatten = do
-    h <- readHand "Bitte Blatt eingeben"
-    r <- readRank "Schlag eingeben."
-    s <- AI.farbe r 0 GameState { playerCount = 2, hands = [h] }
-    print s
--}
+
+-- TODO: - Trumpf oder Kritisch
+-- TODO: - Ausschaffen (mit ! vor Karte)
+
 mainWatten = trace "" $ do
     playerCount <- readInt "Bitte Spieleranzahl eingeben."
         `untilM` (between (2, 6), putStrLn "Spieleranzahl muss zwischen 2 und 6 liegen.")
@@ -58,7 +55,8 @@ mainWatten = trace "" $ do
         `untilM` (between (10, 21), putStrLn "Der Wert liegt sinnvollerweise zwischen 10 und 21.")
     GameState { bilance, playerNames } <- foldCM (defaultState playerCount) iterState playWatten (maximum . bilance $< finish)
     putStrLn ""
-    putStrLn $ "Gewinner:" ++ showListNatural (playerNames !!! indicesOfMaxima bilance)
+    putStrLn ""
+    putStrLn $ "Gewinner:" ++ concatNatural (showListNatural <$> (playerNames !!! indicesOfMaxima bilance))
   where
     iterState state @ GameState { beginnerNo, playerCount } =
         let beg = (beginnerNo + 1) `mod` playerCount in state { beginnerNo = beg, no = beg }
@@ -152,7 +150,7 @@ mainFinish state @ GameState
   } = do
     let winner     = indicesOfMaxima score
         newBilance = addScs winner gameValue bilance
-    putStrLn $ printW winner ++ " die Runde mit " ++ show gameValue ++ " Punkten für sich entschieden."
+    putStrLn $ printW winner ++ " drei Stiche und damit die Runde mit " ++ show gameValue ++ " Punkten für sich entschieden."
     putStrLn "Punkte:"
 
     forM_ [0 .. playerCount-1] $
@@ -161,7 +159,7 @@ mainFinish state @ GameState
 
     return state { score = replicate playerCount 0, bilance = newBilance }
   where
-    printW [0]          = "Du hast "
-    printW [n]          = playerNames !! n ++ " hat "
-    printW winner@(0:_) = concatNatural (playerNames !!! winner) ++ ", ihr habt "
-    printW winner       = concatNatural (playerNames !!! winner) ++ " haben "
+    printW [0]          = "Du hast"
+    printW [n]          = playerNames !! n ++ " hat"
+    printW winner@(0:_) = concatNatural (playerNames !!! winner) ++ ", ihr habt"
+    printW winner       = concatNatural (playerNames !!! winner) ++ " haben"

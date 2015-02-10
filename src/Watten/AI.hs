@@ -21,17 +21,17 @@ import System.Random (randomRIO)
 
 data GameState = GameState
     {
-        playerNames :: [String],
-        playerCount :: Int,
+        playerNames :: [String],    -- the player's names.
+        playerCount :: Int,         -- the number of players.
         
-        beginnerNo  :: Int,
-        no          :: Int,
-        hands       :: [Hand],
-        rule        :: TrickRule,
-        score       :: Score,
-        gameValue   :: Int,
+        beginnerNo  :: Int,         -- the player number of the player who started the round.
+        no          :: Int,         -- the player whose turn it is.
+        hands       :: [Hand],      -- the player's hands.
+        rule        :: TrickRule,   -- the (generated) TrickRule.
+        score       :: Score,       -- the player's trick counts.
+        gameValue   :: Int,         -- the round's value.
         
-        bilance     :: Score
+        bilance     :: Score        -- the player's score.
     }
 
 instance Show GameState where
@@ -50,6 +50,7 @@ instance Show GameState where
           "Bilanz:     " ++ show bilance
 
 defaultState :: Int -> GameState
+defaultState 2 = (defaultState 3) { playerNames = ["Du", "Неффенеий"], playerCount = 2, score = [0, 0], bilance = [0,0] }
 defaultState playerCount = GameState
     {
         playerNames = ["Du", "Anton", "Benita", "Clara", "Daniel", "Egon"],
@@ -75,9 +76,9 @@ schlag n GameState { hands = (remove kriten . (!! n) -> h) } = return $ ranks !!
     Just i = elemIndex mr rankList
 
 farbe :: Rank -> Int -> GameState -> IO Suit
-farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = do
-    putStr "Indices: "
-    putStrLn $ concatNatural $ zipWith (\a b -> show a ++ ": " ++ show b) suits $ (index preH) <$> suits
+farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --do
+    --putStr "Indices: "
+    --putStrLn $ concatNatural $ zipWith (\a b -> show a ++ ": " ++ show b) suits $ (index preH) <$> suits
     if Hearts `elem` bestSuits then return $ Hearts
     else case bestSuits of []  -> pick suits
                            [s] -> return s
@@ -124,16 +125,20 @@ play t h s = stupidPlay t h s
 betterPlay [] h state = return $ head h -- first player of trick
 betterPlay t  h GameState { playerCount, rule }
     | length t == playerCount - 1 = do -- last player of trick
-        print t
-        print $ reverse t
-        let tTrR c = takesTrick rule $ reverse $ c : t
-        let takerAndCard = tTrR <$> h
-        return $ case lookup (playerCount - 1) takerAndCard of
-            Just c  -> c
-            Nothing -> head h
+        tryOverbidWithLeast t h rule playerCount
 betterPlay t  h GameState { playerCount = 3, rule, beginnerNo, no }
-    | no == beginnerNo = do -- 3 player, first one --> solo player
-        
+    | no == beginnerNo = do -- 3 player, first one --> solo player; from above --> middle one to play.
+        tryOverbidWithLeast t h rule 3
+betterPlay t  h GameState { playerCount, rule, beginnerNo, no } = do
+    undefined
+
+tryOverbidWithLeast t h rule playerCount =
+    return $ case lookup (playerCount - 1) takerAndCard of
+        Just c  -> c
+        Nothing -> head h
+  where
+    tTrR c = takesTrick rule $ reverse $ c : t
+    takerAndCard = tTrR <$> h
 
 stupidPlay [] h state = return $ head h
 stupidPlay t  h state = return $ last h
