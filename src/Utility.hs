@@ -31,6 +31,14 @@ _     `minLength` 0 = True
 []    `minLength` _ = False
 (_:t) `minLength` n = t `minLength` (n-1)
 
+-- | Alias for flip elem. Avoids constructions like (`elem` list). inList l x  <-->  x `elem` l
+inList :: Eq a => [a] -> a -> Bool
+inList = flip elem
+
+-- | Alias for flip notElem. Avoids constructions like (`notInList` list). notInList l x  <-->  x `notInList` l
+notInList :: Eq a => [a] -> a -> Bool
+notInList = flip notElem
+
 -- | Returns whether the given list elements are distinct.
 distinct :: Eq a => [a] -> Bool
 distinct = distinctBy (==)
@@ -51,7 +59,8 @@ disjunctBy cmp (l:ls) = disjAux l ls && disjunctBy cmp ls where
     disjAux []    _    = True
     disjAux (h:t) lsts = all (all $ not . cmp h) lsts && disjAux t lsts
 
--- | Splits a given list like this: the first element of the second list is the first to comply the predicate.
+-- | Splits a given list like this:
+--   the first element of the second list is the first in the given list to comply the predicate.
 splitWhere :: (a -> Bool) -> [a] -> ([a], [a])
 splitWhere _ []             = ([], [])
 splitWhere p l@(h:t) | p h  = ([], l)
@@ -67,18 +76,23 @@ inside  (l, u) v = l <  v  &&  v <  u
 indicesOfMaxima :: Ord a => [a] -> [Int]
 indicesOfMaxima = indicesOfMaximaBy compare
 
+-- | returns a list of indices, where at any index the element of the given list is a maximal element, according to the ordering funciton.
 indicesOfMaximaBy :: (a -> a -> Ordering) -> [a] -> [Int]
-indicesOfMaximaBy _ []    = []
+indicesOfMaximaBy _ []        = []
 indicesOfMaximaBy cmp (h':t') = indicesOfMaxima' 1 [0] h' t' where
-    indicesOfMaxima' _ acc _ []    = acc
+    indicesOfMaxima' _ acc _ []    = reverse acc
     indicesOfMaxima' n acc m (h:t)
-        | c == LT  = indicesOfMaxima' (n + 1) acc     m t
-        | c == GT  = indicesOfMaxima' (n + 1) [n]     h t
-        | ow       = indicesOfMaxima' (n + 1) (n:acc) m t
+        | c == LT   = indicesOfMaxima' (n + 1) acc     m t
+        | c == GT   = indicesOfMaxima' (n + 1) [n]     h t
+        | ow        = indicesOfMaxima' (n + 1) (n:acc) m t
       where c = h `cmp` m
 
-maximaBy :: Ord b => (a -> b) -> [a] -> [a]
-maximaBy f l = (l !!) <$> (indicesOfMaxima $ f <$> l)
+-- | returns the maximum
+maxima :: Ord b => (a -> b) -> [a] -> [a]
+maxima = maximaBy compare
+
+maximaBy :: (b -> b -> Ordering) -> (a -> b) -> [a] -> [a]
+maximaBy c f l = (l !!) <$> (indicesOfMaximaBy c $ f <$> l)
 
 none :: (a -> Bool) -> [a] -> Bool
 none c = all $ not . c

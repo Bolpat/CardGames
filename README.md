@@ -1,6 +1,16 @@
 # CardGames
 
+## Greetings
+
+Hello Everyone! Please consider that I'm creating this as a graded project
+and I don't want you to help me until I've held the presentation.
+The presentation will be on 2015-03-25.
+After this date, I'd find it great someone collaborating.
+Espacially for graphics I'm not that firm with.
+
 ## Watten - A Quick Overview
+
+Watten is a famous card game in Bavaria, some parts of Austria and what I've heard also in South Tyrol.
 
 You usually play with 2, 3 or 4 players, but it is also possible with 5 or 6.
 Here you can choose the number you prefer.
