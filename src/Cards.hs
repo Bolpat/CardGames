@@ -14,6 +14,9 @@
 
 #define LOW_10      0
 #define HIGH_10     1
+
+#define SCHAFKOPF   0
+#define WATTEN      1
 -- YOU MAY CHANGE UNDER HERE ---------------------------------------------------
 
 -- || Everything concerning playing cards || --
@@ -47,13 +50,26 @@
 --   that code will break when changing (you will just have unexpected behavior).
 
 #define LANG        DEU
+#define GAME        WATTEN
+
+#if GAME == SCHAFKOPF
+
+#define SUITS       DEU
+#define RANKS       RANKS_7_10
+#define RANKORDER   HIGH_10
+
+#elif GAME == WATTEN
+
 #define SUITS       DEU
 #define RANKS       RANKS_7_10
 #define RANKORDER   LOW_10
 
+#endif
+
 -- DO NOT CHANGE UNDER HERE ----------------------------------------------------
                 module Cards where
 
+                import Data.Char
                 import Control.Applicative
 
 
@@ -76,7 +92,6 @@
                     show Acorns = "Ghiande"
 #else
                     deriving (Eq, Ord, Enum, Bounded, Show)
-                suitChar = toLower . head . show
 #endif
 #elif SUITS == ITA
                 data Suit = Coins | Cups | Swords | Clubs

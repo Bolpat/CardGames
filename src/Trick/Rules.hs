@@ -5,30 +5,46 @@ module Trick.Rules where
 import Data.List (sortBy)
 import Cards
 
--- | Comparing function by trump criteria. If none of the compared cards is a trump EQ shall be returned.
+-- | Comparing function by trump criteria. If none of the compared cards is a trump EQ will be returned.
 type TrumpRule = Card -> Card -> Ordering
+-- | N. B.: particularly TrumpRules maybe won't result in EQ, even if the Cards are equal by default Suit-Rank-comparison.
+--          e. g. in the game Doppelkopf where two Decks are used and every Card exists twice, for any conflict of two Suit-Rank-equal Cards, the first beats the second,
+--          with the optional exception for the Ten of Hearts where the second beats the first.
 
 -- | Comparing function in the case that none of the cards is a trump.
--- | The first argument shall be interpreted as the first card in the trick. The two others shall be compared.
+-- | The first argument will be interpreted as the first card in the trick. The two others will be compared.
 type DantRule  = Card -> Card -> Card -> Ordering
--- | N. B.: 'dant' is common word to indicate a trick made without any trumps - in the card game 'Watten'.
--- |        in the context of Schafkopf this word is not used, but because there is no other, this one will be used.
+-- | N. B.: in the card game 'Watten', 'dant' is common word to indicate a trick made without any trumps.
+-- |        in the context of other games this word is not used, but because there is no other word, this one will be used.
 
--- | Combined type for whole rules. The list shall be processed until there is a decision. If none of the TrumpRules fire then the DantRule shall make the decision.
+-- | Combined type for whole rules. The list will be processed until there is a decision. If none of the TrumpRules fire then the DantRule will make the decision.
 type TrickRule = ([TrumpRule], DantRule)
 
 -- | Sets one specific Card as the highest.
 maxC :: Card -> TrumpRule
-maxC c c1 c2 | c1 == c, c2 /= c = GT
-             | c1 /= c, c2 == c = LT
-             | otherwise        = EQ
+maxC = maxCby GT
+
+-- | Sets one specific Card as the highest.
+--   The given ordering is used in case of both Cards are the specific Card and shall not be EQ.
+maxCby :: Ordering -> Card -> TrumpRule
+maxCby o c c1 c2
+    | c == c1, c == c2 = o
+    | c1 == c, c2 /= c = GT
+    | c1 /= c, c2 == c = LT
+    | otherwise        = EQ
 
 -- | Sets a list of Cards as the highest (in descending order).
 maxL :: [Card] -> TrumpRule
-maxL []     _  _                      = EQ
-maxL (c:cs) c1 c2 | c1 == c, c2 /= c  = GT
-                  | c1 /= c, c2 == c  = LT
-                  | otherwise         = maxL cs c1 c2
+maxL = maxLby GT
+
+-- | Sets a list of Card as the highest (in descending order). It uses maxCBy along to determine the result.
+maxLby :: Ordering -> [Card] -> TrumpRule
+maxLby _ [] _ _ = EQ
+maxLby o (c:cs) c1 c2
+    | res == EQ   = maxLby o cs c1 c2
+    | otherwise   = res
+  where
+    res = maxCby o c c1 c2
 
 -- | Sets the given Rank as the highest Cards. Within it will be compared by the canonical order given by Suit.
 maxR :: Rank -> TrumpRule

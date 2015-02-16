@@ -1,35 +1,40 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell, BangPatterns #-}
 
 module Utility where
 
 import Data.List
+import Data.Maybe
 import Control.Monad
 import Control.Applicative
 
 ow :: Bool
 ow = otherwise
 
+-- | Tries to interpret a String as an arbitrary Read type.
+maybeRead :: Read a => String -> Maybe a
+maybeRead = fmap fst . listToMaybe . reads
+
 -- | Tests if a list has a certain length.
 -- | Like length l == n, but works with infinite lists too.
 hasLength :: [a] -> Int -> Bool
-[]    `hasLength` 0  = True
-_     `hasLength` 0  = False
-[]    `hasLength` _  = False
-(_:t) `hasLength` n  = t `hasLength` (n-1)
+[]    `hasLength`   0  = True
+_     `hasLength`   0  = False
+[]    `hasLength`   _  = False
+(_:t) `hasLength` (!n) = t `hasLength` (n-1)
 
 -- | Tests if a list has the given length or is shorter.
 -- | Like length l <= n, but works with infinite lists too.
 maxLength :: [a] -> Int -> Bool
-[]    `maxLength` _  = True
-_     `maxLength` 0  = False
-(_:t) `maxLength` n  = t `maxLength` (n-1)
+[]    `maxLength`   _  = True
+_     `maxLength`   0  = False
+(_:t) `maxLength` (!n) = t `maxLength` (n-1)
 
 -- | Tests if a list has at least the given length.
 -- | Like length l >= n, but works with infinite lists too.
 minLength :: [a] -> Int -> Bool
-_     `minLength` 0 = True
-[]    `minLength` _ = False
-(_:t) `minLength` n = t `minLength` (n-1)
+_     `minLength`   0  = True
+[]    `minLength`   _  = False
+(_:t) `minLength` (!n) = t `minLength` (n-1)
 
 -- | Alias for flip elem. Avoids constructions like (`elem` list). inList l x  <-->  x `elem` l
 inList :: Eq a => [a] -> a -> Bool
@@ -80,13 +85,12 @@ indicesOfMaxima = indicesOfMaximaBy compare
 indicesOfMaximaBy :: (a -> a -> Ordering) -> [a] -> [Int]
 indicesOfMaximaBy _ []        = []
 indicesOfMaximaBy cmp (h':t') = indicesOfMaxima' 1 [0] h' t' where
-    indicesOfMaxima' _ acc _ []    = reverse acc
-    indicesOfMaxima' n acc m (h:t)
+    indicesOfMaxima' _  acc _ []    = reverse acc
+    indicesOfMaxima' !n acc m (h:t)
         | c == LT   = indicesOfMaxima' (n + 1) acc     m t
         | c == GT   = indicesOfMaxima' (n + 1) [n]     h t
         | ow        = indicesOfMaxima' (n + 1) (n:acc) m t
-      where c = h `cmp` m
-
+      where c  = h `cmp` m
 -- | returns the maximum
 maxima :: Ord b => (a -> b) -> [a] -> [a]
 maxima = maximaBy compare
@@ -107,9 +111,13 @@ dim x m b y = m (x - y) b -- diminish
 sub x m b y = m (y - x) b -- subtract
 eqv x m b y = m x b == m y b -- eqivalent mod b
 
+plus, minus :: Num a => a -> a -> (a -> b -> c) -> b -> c
+plus  x y m b = m (x + y) b
+minus x y m b = m (x - y) b
+
 -- | Counts the elements in a list, which satisfy the predicate.
 countBy :: (a -> Bool) -> [a] -> Int
-countBy p = foldl' (\n x -> if p x then let n' = n+1 in n' `seq` n' else n) 0
+countBy p = foldl' (\ !n x -> if p x then n + 1 else n) 0
 
 -- | Sums after mapping a function on the domain list.
 --   This is intended to be used with a view function like "(fromEnum . rank)" on a list of Cards.
@@ -130,37 +138,40 @@ infix 8 !!!
 l !!! []     = []
 l !!! (i:is) = l !! i : l !!! is
 
--- | Converts a Show-List to a human readable output.
+-- | Converts a showable list to a human readable output.
 showListNatural :: Show a => [a] -> String
 showListNatural l = concatNatural $ map show l
 
--- | Like showListNatural, but uses 
+-- | Concatinates Strings with commas, spaces and "and", like a written enumeration.
 concatNatural :: [String] -> String
 concatNatural []      = ""
 concatNatural [a]     = a
 concatNatural [a, b]  = a ++ " und " ++ b
 concatNatural (a:t)   = a ++ ", " ++ concatNatural t
 
--- | uses a Bool value to indicate if the corresponding element in the given list is kept.
+-- | Uses a Bool value to indicate if the corresponding element in the given list is kept.
 zipPred :: [Bool] -> [a] -> [a]
-zipPred []     _      = []
-zipPred _      []     = []
-zipPred (c:cs) (x:xs) = if c then x : zipPred cs xs else zipPred cs xs
+zipPred []        _      = []
+zipPred _         []     = []
+zipPred (True:cs) (x:xs) = x : zipPred cs xs
+zipPred (_   :cs) (_:xs) =     zipPred cs xs
 
--- | uses a unique filter for each element of the list.
+-- | Uses a unique filter for each element of the list.
 zipFilter :: [a -> Bool] -> [a] -> [a]
 zipFilter _      []     = []
 zipFilter []     l      = l
-zipFilter (c:cs) (x:xs) = if c x then x : zipFilter cs xs else zipFilter cs xs
+zipFilter (c:cs) (x:xs)
+    | c x               = x : zipFilter cs xs
+    | otherwise         =     zipFilter cs xs
 
 -- | Returns the pairwise function application of neighbored list elements.
 zipBetweenWith :: (a -> a -> b) -> [a] -> [b]
-zipBetweenWith f l = zipWith f l $ tail l
+zipBetweenWith f [] = []
+zipBetweenWith f l  = zipWith f l $ tail l
 
 maybeLast :: [a] -> Maybe a
 maybeLast []    = Nothing
-maybeLast [a]   = Just a
-maybeLast (_:t) = maybeLast t
+maybeLast l     = Just $ last l
 
 -- | e. g. usage: (action) `doUntilM` (condition, conditionFalseAction)
 --                (action) `doWhileM` (condition, conditionTrueAction)

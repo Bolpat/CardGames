@@ -23,6 +23,7 @@ data GameState = GameState
     {
         playerNames :: [String],    -- the player's names.
         playerCount :: Int,         -- the number of players.
+        isHuman     :: Int -> Bool, -- determines if the player with the given number exists and is human.
         
         beginnerNo  :: Int,         -- the player number of the player who started the round.
         no          :: Int,         -- the player whose turn it is.
@@ -34,6 +35,13 @@ data GameState = GameState
         
         score       :: Score        -- the player's score (gotten by winning rounds.)
     }
+
+-- | determines if the player with the given number is in the same team with the beginner player.
+isFstParty :: Int -> GameState -> Bool
+isFstParty n GameState { playerCount,     beginnerNo } | even playerCount  = odd $ (n + beginnerNo) `mod` playerCount
+isFstParty n GameState { playerCount = 3, beginnerNo }                     = n == beginnerNo
+isFstParty n GameState { playerCount = 5, beginnerNo }                     = n == beginnerNo || n == (beginnerNo - 1) `mod` 5
+isFstParty _ _                                                             = False
 
 instance Show GameState where
     show GameState
@@ -68,9 +76,10 @@ defaultState playerCount = GameState
     {
         playerNames = take playerCount ["Du", "Anton", "Benita", "Clara", "Daniel", "Egon"],
         playerCount,
+        isHuman     = (== 0),
         
-        beginnerNo  = 0,
-        no          = 0,
+        beginnerNo  = 1,
+        no          = 1,
         hands       = replicate playerCount [],
         rechter     = Card Hearts King,
         rule        = bidding King Hearts,
@@ -135,17 +144,17 @@ type Trick = [Card]
 play, stupidPlay, betterPlay :: Trick -> Hand -> GameState -> IO Card
 
 play t h s @ GameState { rechter, rule } = do
-    let h0' = filter (suit $== suit rechter || inList kriten) h
---    putStrLn $ "h0' = " ++ show h0'
-    let h0  = if null h0' then h else h0'
---    putStrLn $ "h0  = " ++ show h0
-    let h' = if null t || head t /= rechter || snd (takesTrick rule t) /= rechter then h else h0
---    putStrLn $ "h'   = " ++ show h'
-    play' t h' s
+    --let h0' = filter (suit $== suit rechter || inList kriten) h
+    --let h0  = if null h0' then h else h0'
+    --let h'  = if null t || head t /= rechter || snd (takesTrick rule t) /= rechter then h else h0
+    --play' t h' s
+    play' t h s
   where
     play' = if playerCount s == 2 then betterPlay else stupidPlay
 
-betterPlay [] h state = return $ head h         -- first player of trick
+betterPlay [] h GameState { takenTr, rechter }
+    | maximum takenTr == 0, rechter `elem` h  = return rechter
+betterPlay [] h _ = return $ head h             -- first player of trick
 betterPlay t  h GameState { playerCount, rule } -- last player of trick
     | length t == playerCount - 1 = do
         tryOverbidWithLeast t h rule playerCount

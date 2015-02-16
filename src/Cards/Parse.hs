@@ -1,16 +1,25 @@
 {-# LANGUAGE CPP #-}
 
-module Cards.Parse (readHand, readCard, readSuit, readRank) where
+module Cards.Parse (readHand,
+                    readCard,
+                    readCardDirect,
+                    readCardWith,
+                    readCardWithBy,
+                    readSuit,
+                    readRank)
+    where
 
 import Cards
+import Utility
 
 import Data.List
+import Data.Maybe
 import Control.Applicative
 import Control.Monad
 
 -- | How these functions work:
 --   They take some suitChars and/or rankChars parameters which are used for 2-letter notation.
---   2-letter notation is very common in card games. 
+--   2-letter notation is very common in card games.
 
 -- | All these functions take a list of suit and/or rank chars. They are intended to be used like this:
 --   import qualified Cards.Parse as Parse
@@ -63,6 +72,8 @@ parseCard _ _ _ = Nothing
 -- | Reads a Card from user input in 2-letter notation (xY) where x is the Suit and Y is the rank.
 -- | The user will be asked to repeat until the input is valid.
 readCard :: [Char] -> [Char] -> String -> IO Card
+readCard CHARS msg = fst <$> readCardDirect CHARS id id msg
+{-
 readCard CHARS message = do
     putStrLn message
     leseRec where
@@ -71,6 +82,35 @@ readCard CHARS message = do
         case parseCard CHARS str of
             Just k  -> putStrLn ("Karte: " ++ show k) >> return k
             Nothing -> putStrLn "Zu dieser Abkürzung gibt es keine Karte. Bitte erneut eingeben." >> leseRec
+-}
+
+-- | Reads some String from the user. The first function generates a 2-letter notation from this String that is interpreted,
+--   the second generates some other result from the String. Last is the message.
+readCardDirect ::           [Char] -> [Char] -> (String -> String) -> (String -> b) -> String -> IO (Card, b)
+readCardDirect CHARS = readCardWithBy CHARS Just
+
+-- | Reads some String from the user that is read by standard read function. The rest is like readCardDirect.
+readCardWith   :: Read a => [Char] -> [Char] -> (a      -> String) -> (a      -> b) -> String -> IO (Card, b)
+readCardWith CHARS   = readCardWithBy CHARS maybeRead
+
+-- | Reads some String from the user. The first function tries to get some value from it.
+--   The second uses this value to generate 2-letter notaton, the third uses it to get a result.
+--   If one of getting the value or interpreting the 2-letter notation fails, the function repeats aksing the user for input.
+readCardWithBy :: [Char] -> [Char] -> (String -> Maybe a) -> (a -> String) -> (a -> b) -> String -> IO (Card, b)
+readCardWithBy    CHARS               ownMaybeRead           to2Letter        getRes      message = do
+    putStrLn message
+    leseRec
+  where
+    leseRec = do
+        str <- getLine
+        case interpret str of
+            Just r  -> return r
+            Nothing -> failMsg >> leseRec
+    interpret str' = do
+        a <- ownMaybeRead str'
+        c <- parseCard CHARS $ to2Letter a
+        return (c, getRes a)
+    failMsg = putStrLn "Diese Eingabe ist ungültig, sie stellt evtl. keine Karte dar. Bitte erneut eingeben." >> leseRec
 
 readSuit :: [Char] -> String -> IO Suit
 readSuit suitChars message = do

@@ -10,6 +10,7 @@ import Control.Applicative
 
 main :: IO ()
 main = do
+    print ranks
     join $ choiceNum "Was möchtest du spielen?"
         [
             ("Schafkopf", mainSchafkopf),

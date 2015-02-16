@@ -28,6 +28,7 @@ ordRank c1@(Card _ r1) c2@(Card _ r2) =
     case preOrd c1 c2 of
         Just o  -> o
         Nothing -> compare r1 r2
+
 ordSuit c1@(Card s1 _) c2@(Card s2 _) =
     case preOrd c1 c2 of
         Just o  -> o

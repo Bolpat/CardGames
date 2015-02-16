@@ -43,7 +43,6 @@ readInt m = do
 
 mainWatten :: IO ()
 
--- TODO: - Trumpf oder Kritisch
 -- TODO: - Ausschaffen (mit ! vor Karte)
 
 mainWatten = do
@@ -53,11 +52,9 @@ mainWatten = do
         --`untilM` (between (10, 21), putStrLn "Der Wert liegt sinnvollerweise zwischen 10 und 21.")
     GameState { score, playerNames } <- foldCM (defaultState playerCount) iterState playWatten (maximum . score $< finish)
     putStrLn ""
-    putStrLn ""
     putStrLn $ "Gewinner: " ++ concatNatural (playerNames !!! indicesOfMaxima score)
   where
-    iterState state @ GameState { beginnerNo, playerCount } =
-        let beg = (beginnerNo + 1) `mod` playerCount in state { beginnerNo = beg, no = beg }
+    iterState state @ GameState { beginnerNo, playerCount } = state { beginnerNo = beg, no = beg } where beg = (beginnerNo + 1) `mod` playerCount
 
 playWatten state = do
     hands <- getCards 1 (playerCount state) 5 -- 1 deck, p players, 5 cards each
@@ -72,7 +69,7 @@ mainWattenAnsage state @ GameState
   } = do
     Card s r <- getCard no
     let rule = bidding r s
-    mainWattebPlay state { rule, rechter = Card s r, hands = sortTRBy rule rank suit <$> hs }
+    mainWattenPlay state { rule, rechter = Card s r, hands = sortTRBy rule rank suit <$> hs }
   where
     getCard 0 = do
         putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordRank h0)
@@ -86,6 +83,7 @@ mainWattenAnsage state @ GameState
   {
     playerNames,
     playerCount,
+    isHuman,
     no,
     hands = hands @ (h0:_)
   } = do
@@ -94,31 +92,33 @@ mainWattenAnsage state @ GameState
     s <- getSuit r $ dim no mod playerCount 1
     putStrLn ""
     let rule = bidding r s
-    mainWattebPlay state { rule, rechter = Card s r, hands = sortTRBy rule rank suit <$> hands }
+    mainWattenPlay state { rule, rechter = Card s r, hands = sortTRBy rule rank suit <$> hands }
   where
-    getRank 0 = do -- 0 human Player
-        putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordRank h0)
-        readRank "Du bist dran den Schlag anzusagen!"
-    getRank n  = do
-        r <- AI.schlag n state
-        putStrLn $ playerNames !! n ++ " sagt " ++ show r ++ " als Schlag an."
-        return r
+    getRank n
+        | isHuman n = do
+            putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordRank h0)
+            readRank "Du bist dran den Schlag anzusagen!"
+        | otherwise = do
+            r <- AI.schlag n state
+            putStrLn $ playerNames !! n ++ " sagt " ++ show r ++ " als Schlag an."
+            return r
 
-    getSuit r 0 = do
-        putStrLn $ "Der angesagte Schlag ist " ++ show r ++ "."
-        putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordSuit h0)
-        readSuit "Du bist dran den Trumpf anzusagen!"
-    getSuit r n = do
-        s <- AI.farbe r n state
-        putStrLn $ playerNames !! n ++ " sagt " ++ show s ++ " als Trumpf an."
-        return s
+    getSuit r n
+        | isHuman n = do
+            putStrLn $ "Der angesagte Schlag ist " ++ show r ++ "."
+            putStrLn $ "Dein Blatt: " ++ showListNatural (sortBy ordSuit h0)
+            readSuit "Du bist dran den Trumpf anzusagen!"
+        | otherwise = do
+            s <- AI.farbe r n state
+            putStrLn $ playerNames !! n ++ " sagt " ++ show s ++ " als Trumpf an."
+            return s
 
-mainWattebPlay state = do
+mainWattenPlay state = do
     state <- foldCM state id trick (maximum . takenTr $< 3)
     putStrLn ""
     mainFinish state
   where
-    trick state @ GameState { playerNames, playerCount, beginnerNo, no, rechter, rule, takenTr, hands = hs@(h0:_) } = do
+    trick state @ GameState { playerNames, playerCount, isHuman, beginnerNo, no, rechter, rule, takenTr, hands = hs@(h0:_) } = do
         (reverse -> playedCards) <- foldUM [] (:) giveBy [0 .. playerCount-1]
         let (add no mod playerCount -> plNo, crd) = takesTrick rule playedCards
         putStrLn $ (if plNo == 0 then "Deine Karte"
@@ -128,32 +128,38 @@ mainWattebPlay state = do
         return state
           {
             no      = plNo,
-            takenTr = newScore plNo,
+            takenTr = newTakenTr plNo,
             hands   = filter (notInList playedCards) <$> hs
           }
       where
         giveBy = giveBy' . add no mod playerCount
-        giveBy' 0 (reverse -> t) = do -- Player 0 is human player
+        giveBy' n (reverse -> t) | isHuman n = do -- Player 0 is human player
             putStrLn $ if null t then "Du darfst mit folgenden Karten herauskommen:" else "Du darfst die folgenden Karten ausspielen:"
             putStrLn $ "Dein Blatt: " ++ showListNatural h0
             readCard "Welche Karte soll es sein?"
                 `untilM` (inList h0, putStrLn "Du hast diese Karte nicht.")
-                `untilM` (cond,      putStrLn "Trumpf oder Kritisch: Du darfst diese Karte nicht ausspielen.")
-          where cond | null t || head t /= rechter || snd (takesTrick rule t) /= rechter   = true
-                     | otherwise  = if null h' then true else inList h' where h' = filter (suit $== suit rechter || inList kriten) h0
+                `untilM` (cond t,    putStrLn "Trumpf oder Kritisch: Du darfst diese Karte nicht ausspielen.")
         giveBy' n (reverse -> t) = do
-            c <- AI.play t (hs !! n) state
+            let h = filter (cond t) (hs !! n)
+            c <- AI.play t h state
             putStrLn $ (playerNames !! n) ++ (if null t then " kommt mit " ++ show c ++ " heraus." else " gibt " ++ show c ++ " zu.")
             return c
-        newScore plNo = case playerCount of
-                    2  ->  incSc plNo takenTr
-                    3  ->  if plNo == beginnerNo then incSc plNo takenTr else incScs ([0..2] \\ [beginnerNo]) takenTr
-                    4  ->  incScs [plNo, add plNo mod 4 2] takenTr
-                    5  ->  let dealer = dim beginnerNo mod 5 1 in
-                           if plNo == beginnerNo || plNo == dealer
-                               then incScs [beginnerNo, beginnerNo + 1] takenTr
-                               else incScs (flip mod 5 <$> [beginnerNo + 1 .. beginnerNo + 3]) takenTr
-                    6  ->  incScs [plNo, (plNo + 2) `mod` 6, (plNo + 4) `mod` 6] takenTr
+        cond t | null t                               = true -- no card in the trick
+               | maximum takenTr /= 0                 = true -- not first trick
+               | head t /= rechter                    = true -- first card of the trick is not the rechter
+               | snd (takesTrick rule t) /= rechter   = true -- the rechter is not the current trick taking card
+               | otherwise                            = if null h' then true else inList h'
+          where h' = filter (suit $== suit rechter || inList kriten) h0
+        newTakenTr plNo = case playerCount of
+            2 -> incSc plNo takenTr
+            3 -> if plNo == beginnerNo then incSc plNo takenTr else incScs ([0..2] \\ [beginnerNo]) takenTr
+            4 -> incScs [plNo, (plNo + 2) `mod` 4] takenTr
+            5 -> let dealer = (beginnerNo - 1) `mod` 1 in
+                 if plNo == beginnerNo || plNo == dealer
+                   then incScs [beginnerNo, beginnerNo + 1] takenTr
+                   else incScs ((`mod` 5) <$> [beginnerNo + 1 .. beginnerNo + 3]) takenTr
+            6 -> incScs [plNo, (plNo + 2) `mod` 6, (plNo + 4) `mod` 6] takenTr
+
 mainFinish state @ GameState
   {
     playerNames,

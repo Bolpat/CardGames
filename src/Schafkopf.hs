@@ -1,27 +1,31 @@
-{-# LANGUAGE CPP, ViewPatterns, MultiWayIf, TupleSections, NamedFieldPuns #-}
+{-# LANGUAGE CPP            #-}
+{-# LANGUAGE MultiWayIf     #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE TupleSections  #-}
+{-# LANGUAGE ViewPatterns   #-}
 
 module Schafkopf where
 
-import Utility
-import Utility.Choice
-import Utility.Cond
+import           Utility
+import           Utility.Choice
+import           Utility.Cond
 
-import Cards
-import qualified Cards.Parse as Parse
-import Cards.Shuffle
+import           Cards
+import qualified Cards.Parse         as Parse
+import           Cards.Shuffle
 
-import Trick.Rules
+import           Trick.Rules
 
-import Schafkopf.GameTypes
-import Schafkopf.Score
-import Schafkopf.AI as AI
+import           Schafkopf.AI        as AI
+import           Schafkopf.GameTypes
+import           Schafkopf.Score
 
-import Prelude hiding ((||), (&&), not, or, and)
-import Data.List hiding (and, or)
+import           Data.List           hiding (and, or)
+import           Prelude             hiding (and, not, or, (&&), (||))
 
-import Control.Monad
-import Control.Applicative
-import Control.Exception
+import           Control.Applicative
+import           Control.Exception
+import           Control.Monad
 
 mainSchafkopf :: IO ()
 mainGameChoice :: [Bool] -> GameState -> IO ()
@@ -31,19 +35,19 @@ mainFinishSolo :: Bool -> Int -> Int -> GameState -> IO ()
 
 mainSchafkopf = do
     (map $ sortTR normalTR -> hs @ (h0:_)) <- getCards 1 4 8 -- 1 deck, 4 players, 8 cards each
-    
+
     putStrLn $ "Dein Blatt: " ++ showListNatural h0
     putStrLn ""
-    
+
     case elemIndex officers hs of -- here we use that hs are sorted (sortTR)
         Just 0 -> putStrLn  "Du hast einen Sie. Herzlichen Glückwunsch!"            >> mainSchafkopf
         Just i -> putStrLn ("Spieler " ++ show i ++ " hat einen Sie. Neues Spiel.") >> mainSchafkopf
         Nothing ->  return ()
-    
+
     let canCall = mayCallRS normalTrumps h0
         mayCall = or canCall
         games = ("Weiter", Ramsch) : option mayCall ("Rufspiel", Rufspiel Hearts)
-    
+
     _g <- choiceNum "Was für ein Spiel soll es sein?" $ games ++
                     [
                         ("Farb-Wenz", Wenz $ Just Hearts),
@@ -52,7 +56,7 @@ mainSchafkopf = do
                     ]
 
     let state = AI.overbid hs _g -- this + expr above can be (AI.overbid hs -> state) <- (expr above)
-    
+
     case player state of
         Just 0  -> putStrLn   "Du darfst spielen."                                           >> mainGameChoice canCall state
         Just n  -> putStrLn ("Spieler " ++ show n ++ " spielt " ++ show (game state) ++ ".") >> mainPlay state
@@ -62,7 +66,7 @@ mainSchafkopf = do
 mainGameChoice canCall state @ AI.GameState { hands, game = Rufspiel _ } = do
     let sts = zipPred canCall suits
     calledSuit <- choiceAlpha "Wähle eine Farbe:" $ zip (show <$> sts) sts
-    
+
     let newState = state
             {
                 game    = Rufspiel calledSuit,
@@ -76,7 +80,7 @@ mainGameChoice _ state @ (game -> Wenz (Just _)) = do
     let zSuits = ZipList suits
     calledSuit <- choiceAlpha "Wähle eine Farbe:" $ getZipList $ (,) <$> (show <$> zSuits) <*> zSuits
     let game = Wenz $ Just calledSuit
-    
+
     let newState = state
             {
                 game,
@@ -122,16 +126,16 @@ mainPlay st = do
             } = do
         (reverse -> playedCards) <- foldUM [] (:) giveBy [0 .. 3]
         let (add no mod 4 -> plNo, crd) = takesTrick trRule playedCards
-            
+
         let scr = sum $ cardScore <$> playedCards
         let newScores = addSc plNo score scr
         let newTricks = addSc plNo takenTr 1
-            
+
         putStrLn $ if plNo == 0 then "Deine Karte macht den Stich mit " ++ show scr ++ " Augen."
                                 else show crd ++ " von " ++ playerNames !! plNo ++ " gewinnt den Stich mit " ++ show scr ++ " Augen."
         putStrLn ""
         putStrLn ""
-            
+
         return state
             {
                 no      = plNo,
@@ -146,14 +150,14 @@ mainPlay st = do
         suitChars = ['s', 'h', 'g', 'e']
         rankChars = ['7', '8', '9', 'U', 'O', 'K', 'X', 'A']
         readCard = Parse.readCard suitChars rankChars
-            
+
         giveBy = giveBy' . add no mod 4
         giveBy' 0 t = do -- Player 0 is human player
             putStrLn   "Du hast die folgenden Karten:"
             putStrLn $ showListNatural h0
             putStrLn $ if null t then "Du darfst mit folgenden Karten herauskommen:" else "Du darfst die folgenden Karten ausspielen:"
             putStrLn $ showListNatural availableCards
-            
+
             readCard "Welche Karte soll es sein?"
                 `untilM` ((`elem` h0),             putStrLn "Du hast diese Karte nicht.")
                 `untilM` ((`elem` availableCards), putStrLn "Diese Karte darfst du nicht ausspielen.")
@@ -173,7 +177,7 @@ mainPlay st = do
 mainFinish GameState
   {
     game    = Rufspiel _,
-    
+
     playerNames,
     player  = Just p,
     mate    = Just mt,
@@ -183,14 +187,14 @@ mainFinish GameState
       where
         playerParty = [p, mt]
         contraParty = [0,1,2,3] \\ playerParty
-        
+
         playerPartySc = (score !! p)  +  (score !! mt)
         contraPartySc = 120 - playerPartySc
-        
+
         winnerParty = if contraPartySc < 60 then playerParty else contraParty
         schneider   = if playerPartySc <= 30 || contraPartySc <  30 then 2 else 0
         schwarz     = if playerPartySc ==  0 || contraPartySc ==  0 then 2 else 0
-        
+
         finalMessage :: Int -> Int -> Int -> IO ()
         finalMessage m hs os = do -- human + mate score / other's score
             putStrLn $ "Du spieltest mit Spieler " ++ (playerNames !! m) ++ " zusammen."
@@ -207,10 +211,11 @@ mainFinish GameState
                         ++ show ((2 :: Int) + schneider + schwarz) ++ "."
                  | otherwise              = (if n == 0 then "Du zahlst " else playerNames !! n ++ " zahlt ")
                         ++ show ((2 :: Int) + schneider + schwarz) ++ "."
+
 mainFinish GameState
   {
     game = Ramsch,
-    
+
     playerNames,
     score,
     takenTr = (elemIndex 8 -> durchmarsch)
@@ -218,13 +223,13 @@ mainFinish GameState
         putStrLn $ if n == 0 then "Du hast einen Durchmarsch geschafft! Wow."
                              else  playerNames !! n ++ " hat einen Durchmarsch geschafft."
         mapM_ (putStrLn . payget) $ sort $ zip (snd <$> reverse orderedScore) (snd payment)
-        
+
     | otherwise               = do
         putStrLn $ "Spielende:"
         putStrLn $ "Du hast " ++ show (head score) ++ " Augen."
         forM_ [1..3] (\n -> putStrLn $ (playerNames !! n) ++ " hat " ++ show (score !! n) ++ " Augen.")
         putStrLn $ "Es blieben " ++ (show $ fst payment) ++ " Spieler Jungfrau."
-        
+
         mapM_ (putStrLn . payget) $ sort $ zip (snd <$> orderedScore) (snd payment)
       where
         orderedScore = sort $ zip score [0::Int ..]
@@ -248,12 +253,12 @@ mainFinish GameState
                             [EQ, EQ, LT] -> [1, 1,  1, -3]
                             [EQ, EQ, EQ] -> [0, 0,  0,  0]
                             _            -> error "This shall not occur. The list is not 3 long or not ordered."
-    
+
 mainFinish state @ GameState
   {
     game   = Bettel,
     player = Just p,
-    
+
     playerNames,
     takenTr = (elemIndex 8 -> bettel_sieger)
   } | Just n <- bettel_sieger, n == p   = do
@@ -262,12 +267,12 @@ mainFinish state @ GameState
     | otherwise                         = do
         putStrLn $ show (playerNames !! p) ++ " hat das Bettel leider verloren."
         mainFinishSolo False 0 0 state
-    
+
 mainFinish state @ GameState
   {
     game,
     player = Just p,
-    
+
     playerNames,
     score
   } = do
@@ -280,7 +285,7 @@ mainFinish state @ GameState
   where
     playerScore = score !! p
     contraScore = 120 - playerScore
-    
+
     playerWon   = playerScore > 60
     schneider, schwarz :: Int
     schneider   = if playerScore <= 30 || contraScore <  30 then 5 else 0
@@ -299,7 +304,7 @@ mainFinishSolo True schneider schwarz GameState
   where
     spielWert = 5 + schneider + schwarz
     contraParty = [0..3] \\ [p]
-    
+
 mainFinishSolo False schneider schwarz GameState
   {
     player = Just p,
