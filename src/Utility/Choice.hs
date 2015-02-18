@@ -10,9 +10,11 @@ import Data.Maybe
 import Data.Char
 import Control.Applicative
 
+choiceBool :: String -> IO Bool
+choiceBool = choiceYesNo True False
 
-choiceYesNo :: String -> c -> c -> IO c
-choiceYesNo prompt yes no = do
+choiceYesNo :: c -> c -> String -> IO c
+choiceYesNo yes no prompt = do
     putStr prompt
     putStrLn " (j/n)?"
     c <- getLine

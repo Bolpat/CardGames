@@ -16,16 +16,14 @@ zipN n = do
     let lsP = varP <$> lsN
         lsE = varE <$> lsN
         zlsE = appE [| ZipList |] <$> lsE
-        appZlsE = appE [| flip (<*>) |] <$> zlsE
+        appZlsE = appE [| (<**>) |] <$> zlsE
     lamE lsP $ appE [| getZipList |] $
         foldl (flip appE) ( appE [| pure |] (tupleN n) ) appZlsE
-
 
 tupleN :: Int -> ExpQ
 tupleN n = do
     xsN <- replicateM n $ newName "x"
     lamE (varP <$> xsN) $ tupE (varE <$> xsN)
-
 
 v :: Int -> ExpQ
 v n = do

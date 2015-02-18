@@ -36,6 +36,11 @@ _     `minLength`   0  = True
 []    `minLength`   _  = False
 (_:t) `minLength` (!n) = t `minLength` (n-1)
 
+isLeft, isRight :: Either a b -> Bool
+isLeft (Left _) = True
+isLeft _        = False
+isRight         = not . isLeft
+
 -- | Alias for flip elem. Avoids constructions like (`elem` list). inList l x  <-->  x `elem` l
 inList :: Eq a => [a] -> a -> Bool
 inList = flip elem
@@ -135,7 +140,7 @@ option p a = if p then [a] else []
 -- | Gets sublist by given indices.
 infix 8 !!!
 (!!!) :: [a] -> [Int] -> [a]
-l !!! []     = []
+_ !!! []     = []
 l !!! (i:is) = l !! i : l !!! is
 
 -- | Converts a showable list to a human readable output.
@@ -181,7 +186,6 @@ maybeLast l     = Just $ last l
 --          `doUntilM` ((5 <).length, putStrLn "input must be at least 5 characters long.")
 --          `doWhileM` (head $==$ last, putStrLn "first and last character have to differ.")
 --      ...
-
 whileM, untilM :: Monad m => m a -> (a -> Bool, m b) -> m a
 action `untilM` cr@(cond, recAct) = do
     a <- action
@@ -192,17 +196,24 @@ action `whileM` cr@(cond, recAct) = do
     if cond a then do _ <- recAct; action `whileM` cr
               else return a
 
-
 -- | Similar to foldM with preserved accumulated and usable interim result.
 foldUM :: Monad m => state -> (b -> state -> state) -> (a -> state -> m b) -> [a] -> m state
-foldUM state _ _ []    = return state
-foldUM state f g (a:t) = do
-    b <- g a state
-    foldUM (f b state) f g t
+foldUM state _      _      []    = return state
+foldUM state update action (a:t) = do
+    b <- action a state
+    foldUM (update b state) update action t
 
-foldCM :: Monad m => a -> (a -> a) -> (a -> m a) -> (a -> Bool) -> m a
+foldCM :: Monad m => state -> (state -> state) -> (state -> m state) -> (state -> Bool) -> m state
 foldCM start update action cond = do
     state <- action start
     if cond state
         then foldCM (update state) update action cond
+        else return state
+
+foldUCM :: Monad m => state -> (b -> state -> state) -> (a -> state -> m b) -> (b -> Bool) -> [a] -> m state
+foldUCM state _      _      _    []    = return state
+foldUCM state update action cond (a:t) = do
+    b <- action a state
+    if cond b
+        then foldUCM (update b state) update action cond t
         else return state

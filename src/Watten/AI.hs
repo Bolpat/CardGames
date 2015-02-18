@@ -30,18 +30,29 @@ data GameState = GameState
         hands       :: [Hand],      -- the player's hands.
         rechter     :: Card,        -- the "Hauptschlag"
         rule        :: TrickRule,   -- the (generated) TrickRule.
+        lastExpeIsF :: Maybe Bool,  -- states if last expeller is in first player's party (when there is an expeller).
         takenTr     :: Score,       -- the number of the player's tricks in the current round.
         gameValue   :: Int,         -- the round's value.
         
-        score       :: Score        -- the player's score (gotten by winning rounds.)
+        score       :: Score,       -- the player's score (gotten by winning rounds.)
+        finish      :: Int          -- the score necessary to win (2 below: agog)
     }
 
 -- | determines if the player with the given number is in the same team with the beginner player.
-isFstParty :: Int -> GameState -> Bool
-isFstParty n GameState { playerCount,     beginnerNo } | even playerCount  = odd $ (n + beginnerNo) `mod` playerCount
-isFstParty n GameState { playerCount = 3, beginnerNo }                     = n == beginnerNo
-isFstParty n GameState { playerCount = 5, beginnerNo }                     = n == beginnerNo || n == (beginnerNo - 1) `mod` 5
-isFstParty _ _                                                             = False
+isFstParty :: GameState -> Int -> Bool
+isFstParty = flip isFstParty'
+  where
+    isFstParty' n GameState { playerCount,     beginnerNo } | even playerCount  = even $ (n + beginnerNo) `mod` playerCount
+    isFstParty' n GameState { playerCount = 3, beginnerNo }                     = n == beginnerNo
+    isFstParty' n GameState { playerCount = 5, beginnerNo }                     = n == beginnerNo || n == (beginnerNo - 1) `mod` 5
+    isFstParty' _ _                                                             = False
+
+sameParty :: GameState -> Int -> Int -> Bool
+sameParty s m n = isFstParty s m == isFstParty s n
+
+-- | determines if the player with the given number is "gespannt".
+agog :: GameState -> Int -> Bool
+agog = flip agog' where agog' n GameState { score, finish } = score !! n > finish - 3
 
 instance Show GameState where
     show GameState
@@ -60,34 +71,43 @@ instance Show GameState where
           "Spielwert:   " ++ show gameValue   ++ "\n" ++
           "Punkte:      " ++ show score
 
-defaultState :: Int -> GameState
-defaultState 2           = (defaultState 3)
-    {
-        playerNames = ["Du", "Неффенеий"],
+defaultState :: Int -> Int -> IO GameState
+defaultState f 2          = do
+    b <- pick [0, 1]
+    s <- defaultState f 3
+    return s
+      {
+        playerNames = ["Du", "Неффения"],
         playerCount = 2,
+        beginnerNo  = b,
+        no          = b,
         
         hands       = [[], []],
         takenTr     = [ 0,  0],
         
         score       = [ 0,  0]
-    }
+      }
 
-defaultState playerCount = GameState
-    {
+defaultState f playerCount = do
+    (subtract 1 -> b) <- pick [1 .. playerCount]
+    return GameState
+      {
         playerNames = take playerCount ["Du", "Anton", "Benita", "Clara", "Daniel", "Egon"],
         playerCount,
         isHuman     = (== 0),
         
-        beginnerNo  = 1,
-        no          = 1,
+        beginnerNo  = b,
+        no          = b,
         hands       = replicate playerCount [],
         rechter     = Card Hearts King,
         rule        = bidding King Hearts,
+        lastExpeIsF = Nothing,
         takenTr     = replicate playerCount 0,
         gameValue   = 2,
         
-        score       = replicate playerCount 0
-    }
+        score       = replicate playerCount 0,
+        finish      = f
+      }
 
 remove = flip (\\)
 
@@ -98,8 +118,8 @@ schlag n GameState { hands = (remove kriten . (!! n) -> h) } = return $ ranks !!
     mr = maximum rankList
     Just i = elemIndex mr rankList
 
-farbe :: Rank -> Int -> GameState -> IO Suit
-farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --do
+trumpf :: Rank -> Int -> GameState -> IO Suit
+trumpf r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --do
     --putStr "Indices: "
     --putStrLn $ concatNatural $ zipWith (\a b -> show a ++ ": " ++ show b) suits $ (index preH) <$> suits
     if Hearts `elem` bestSuits then return $ Hearts
@@ -110,14 +130,14 @@ farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --
     preH = filter (rank $/= r) h
     
     cc n = if playerCount >= n then 1 else 0
-    v Seven = 0
-    v Eight = 0
-    v Nine  = 2
-    v Ten   = 3
-    v Under = 4 + cc 6
-    v Over  = 5 + cc 4 + cc 6 + cc 6
-    v King  = 5 + playerCount + cc 6 - cc 3 -- minus is correct here
-    v Ace   = 7 + playerCount + cc 5 + cc 6
+    v Seven = 10
+    v Eight = 10
+    v Nine  = 12
+    v Ten   = 13
+    v Under = 14 + cc 6
+    v Over  = 15 + cc 4 + cc 6 + cc 6
+    v King  = 15 + playerCount + cc 6 - cc 3 -- minus is correct here
+    v Ace   = 17 + playerCount + cc 5 + cc 6
     
     rkCnt Seven = 2
     rkCnt King  = 3
@@ -127,17 +147,23 @@ farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --
             | otherwise           = 0
     
     sumValue = sumBy $ v . rank
-
+    
     index :: Hand -> Suit -> Int
     index = flip index' where index' s (filter (suit $== s) -> hd) = sumValue hd + bonus s
-
+    
     bestSuits = maxima (index preH) suits
 
 schlagFarbe :: Int -> GameState -> IO Card
 schlagFarbe n state = do
     r <- schlag n state
-    s <- farbe r n state
+    s <- trumpf r n state
     return $ Card s r
+
+expel :: Int -> GameState -> IO Bool
+expel n _ = return False
+
+expelled :: Int -> Int -> GameState -> IO Bool
+expelled other n _ = return False
 
 type Trick = [Card]
 

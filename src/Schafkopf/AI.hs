@@ -11,6 +11,7 @@ import Utility
 import Utility.Cond
 
 import Cards
+import Cards.Shuffle
 
 import Trick.Rules
 
@@ -18,8 +19,8 @@ import Schafkopf.Score
 import Schafkopf.GameTypes
 
 import Prelude hiding ((||), (&&), not, or, and)
-import Control.Applicative
 import Data.List
+import Control.Applicative
 
 
 data GameState = GameState
@@ -130,7 +131,7 @@ play :: Trick -> Hand -> GameState -> IO Card
 play = stupidPlay
 
 stupidPlay :: Trick -> Hand -> GameState -> IO Card
-stupidPlay _ h _ = return (head h)
+stupidPlay _ h _ = pick h
 
 trivialPlay :: Trick -> Hand -> GameState -> IO Card
 trivialPlay _     []  _    = error "AI cannot play a card" -- this shall NEVER occur, fault by missing savatorian clause

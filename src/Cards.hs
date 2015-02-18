@@ -49,6 +49,8 @@
 -- | Changing Orderings will (!) affect the (derived) Ord instance, but it is not expected
 --   that code will break when changing (you will just have unexpected behavior).
 
+-- TODO: Enable Joker
+
 #define LANG        DEU
 #define GAME        WATTEN
 
@@ -294,4 +296,3 @@
                 -- | The whole deck
                 allCards :: [Card]
                 allCards = Card <$> suits <*> ranks
-                --allCards = [ Card s r | s <- suits, r <- ranks ]

@@ -15,6 +15,8 @@ Watten is a famous card game in Bavaria, some parts of Austria and what I've hea
 You usually play with 2, 3 or 4 players, but it is also possible with 5 or 6.
 Here you can choose the number you prefer.
 
+Because this is a computer game, it is impossible to implement the "Deuten".
+
 ### Aim
 
 The players get 5 cards each.
@@ -89,6 +91,8 @@ Es wird mit 2 bis 4 Spielern gespielt.
 Da ich auch Regeln für 5 und 6 Spieler entwickelt habe, stehen dise Anzahlen auch zur Verfügung.
 In der Implementierung ist die Anzahl zu Beginn wählbar.
 
+Es wird kein "Deuten" implementiert.
+
 ### Ziel des Spiels
 
 Jeder Spieler erhält 5 Karten.
@@ -131,7 +135,7 @@ Schläge sind von der Regel nicht betroffen. Kann ein Spieler weder noch, dann d
 ### Punkte und Ausschaffen
 
 Zu Beginn ist jede Runde 2 Punkte wert. Wenn ein Spieler an der Reihe ist, kann er vor dem Ausspielen oder Zugeben
-seiner Karte ausschaffen (mit den Worten "Gehst d?u" oder "Geht ihr?").
+seiner Karte ausschaffen (mit den Worten "Gehst du?" oder "Geht ihr?").
 Wurde von der Gegenpartei noch keine Karte gelegt, so muss der erste Gegener nach dem Spieler entscheiden, ansonsten
 der Gegner, der zuletzt eine Karte gelegt hat.
 Der Gegner muss zwischen aufgeben oder weiterspielen wählen. Bei ersterem gewinnt die Partei des Ausschaffenden sofort.

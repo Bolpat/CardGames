@@ -12,4 +12,5 @@ addScs :: [Int] -> Int -> Score -> Score
 addScs []     _   = id
 addScs (i:is) val = addScs is val . addSc i val
 
+incScs :: [Int] -> Score -> Score
 incScs is = addScs is 1
