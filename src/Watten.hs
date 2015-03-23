@@ -50,7 +50,8 @@ mainWatten = do
     playerCount <- readInt "Bitte Spieleranzahl eingeben."
         `untilM` (between (2, 6), putStrLn "Spieleranzahl muss zwischen 2 und 6 liegen.")
     finish <- readInt "Bitte Punkte bis Spielende eingeben."
-        --`untilM` (between (10, 21), putStrLn "Der Wert liegt sinnvollerweise zwischen 10 und 21.")
+        `untilM` (between (10, 21), putStrLn "Der Wert liegt sinnvollerweise zwischen 10 und 21.")
+    putStrLn ""
     GameState { score, playerNames } <- foldCM (defaultState playerCount) iterState playWatten (maximum . score $< finish)
     putStrLn ""
     putStrLn ""
