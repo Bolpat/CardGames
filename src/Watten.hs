@@ -179,7 +179,8 @@ mainFinish state @ GameState
 
     forM_ [0 .. playerCount-1] $
         putStrLn . \n -> playerNames !! n ++ ": " ++ show (newScore !! n)
-    putStrLn "\n"
+    putStrLn ""
+    putStrLn ""
 
     return state { takenTr = replicate playerCount 0, score = newScore }
   where
