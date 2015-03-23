@@ -134,14 +134,14 @@ l !!! (i:is) = l !! i : l !!! is
 showListNatural :: Show a => [a] -> String
 showListNatural l = concatNatural $ map show l
 
--- | Like showListNatural, but uses 
+-- | Like showListNatural, but doesn't try to show Strings.
 concatNatural :: [String] -> String
 concatNatural []      = ""
 concatNatural [a]     = a
 concatNatural [a, b]  = a ++ " und " ++ b
 concatNatural (a:t)   = a ++ ", " ++ concatNatural t
 
--- | uses a Bool value to indicate if the corresponding element in the given list is kept.
+-- | uses a Bool value to indicate if the corresponding element in the given list will occur in the output.
 zipPred :: [Bool] -> [a] -> [a]
 zipPred []     _      = []
 zipPred _      []     = []

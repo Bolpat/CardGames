@@ -71,6 +71,7 @@ mainWattenAnsage state @ GameState
     hands       = hs @ (h0 : _)
   } = do
     Card s r <- getCard no
+    putStrLn ""
     let rule = bidding r s
     mainWattebPlay state { rule, rechter = Card s r, hands = sortTRBy rule rank suit <$> hs }
   where
@@ -138,13 +139,20 @@ mainWattebPlay state = do
             putStrLn $ "Dein Blatt: " ++ showListNatural h0
             readCard "Welche Karte soll es sein?"
                 `untilM` (inList h0, putStrLn "Du hast diese Karte nicht.")
-                `untilM` (cond,      putStrLn "Trumpf oder Kritisch: Du darfst diese Karte nicht ausspielen.")
-          where cond | null t || head t /= rechter || snd (takesTrick rule t) /= rechter   = true
-                     | otherwise  = if null h' then true else inList h' where h' = filter (suit $== suit rechter || inList kriten) h0
+                `untilM` (cond t h0, putStrLn "Trumpf oder Kritisch: Du darfst diese Karte nicht ausspielen.")
         giveBy' n (reverse -> t) = do
-            c <- AI.play t (hs !! n) state
+            let h' = hs !! n
+                h  = filter (cond t h') h'
+            c <- AI.play t h state
             putStrLn $ (playerNames !! n) ++ (if null t then " kommt mit " ++ show c ++ " heraus." else " gibt " ++ show c ++ " zu.")
             return c
+        cond [] _ = true
+        cond t@(r:_) h | r /= rechter                         = true -- first card of the trick is not the rechter
+                       | any (/= 0) takenTr                   = true -- not first trick
+                       | snd (takesTrick rule t) /= rechter   = true -- the rechter is not the current trick taking card
+                       | null h'                              = true -- the player woild have no cards to play (salvator clause)
+                       | otherwise                            = inList h'
+          where h' = filter (suit $== suit rechter || inList kriten) h
         newScore plNo = case playerCount of
                     2  ->  incSc plNo takenTr
                     3  ->  if plNo == beginnerNo then incSc plNo takenTr else incScs ([0..2] \\ [beginnerNo]) takenTr
@@ -154,6 +162,7 @@ mainWattebPlay state = do
                                then incScs [beginnerNo, beginnerNo + 1] takenTr
                                else incScs (flip mod 5 <$> [beginnerNo + 1 .. beginnerNo + 3]) takenTr
                     6  ->  incScs [plNo, (plNo + 2) `mod` 6, (plNo + 4) `mod` 6] takenTr
+
 mainFinish state @ GameState
   {
     playerNames,

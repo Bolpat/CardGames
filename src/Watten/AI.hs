@@ -85,14 +85,11 @@ remove = flip (\\)
 schlag :: Int -> GameState -> IO Rank
 schlag n GameState { hands = (remove kriten . (!! n) -> h) } = return $ ranks !! i
   where
-    rankList = (countBy . (rank $==) <$> ranks) <*> pure h
-    mr = maximum rankList
-    Just i = elemIndex mr rankList
+    rankList = countBy . (rank $==) <$> ranks <*> pure h
+    i = head $ indicesOfMaxima rankList
 
 farbe :: Rank -> Int -> GameState -> IO Suit
-farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --do
-    --putStr "Indices: "
-    --putStrLn $ concatNatural $ zipWith (\a b -> show a ++ ": " ++ show b) suits $ (index preH) <$> suits
+farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  =
     if Hearts `elem` bestSuits then return $ Hearts
     else case bestSuits of []  -> pick suits
                            [s] -> return s
@@ -118,10 +115,10 @@ farbe r n GameState { playerCount, hands = (remove kriten . (!! n) -> h) }  = --
             | otherwise           = 0
     
     sumValue = sumBy $ v . rank
-
+    
     index :: Hand -> Suit -> Int
     index = flip index' where index' s (filter (suit $== s) -> hd) = sumValue hd + bonus s
-
+    
     bestSuits = maxima (index preH) suits
 
 schlagFarbe :: Int -> GameState -> IO Card
@@ -134,16 +131,9 @@ type Trick = [Card]
 
 play, stupidPlay, betterPlay :: Trick -> Hand -> GameState -> IO Card
 
-play t h s @ GameState { rechter, rule } = do
-    let h0' = filter (suit $== suit rechter || inList kriten) h
---    putStrLn $ "h0' = " ++ show h0'
-    let h0  = if null h0' then h else h0'
---    putStrLn $ "h0  = " ++ show h0
-    let h' = if null t || head t /= rechter || snd (takesTrick rule t) /= rechter then h else h0
---    putStrLn $ "h'   = " ++ show h'
-    play' t h' s
+play t h s @ GameState { rechter, rule } = play' t h s
   where
-    play' = if playerCount s == 2 then betterPlay else stupidPlay
+    play' = if playerCount s <= 3 then betterPlay else stupidPlay
 
 betterPlay [] h state = return $ head h         -- first player of trick
 betterPlay t  h GameState { playerCount, rule } -- last player of trick
@@ -156,12 +146,13 @@ betterPlay t  h GameState { playerCount, rule, beginnerNo, no } = do
     undefined
 
 tryOverbidWithLeast (reverse -> t) h rule playerCount = do
+    -- here lookup returns the first 
     return $ case lookup (playerCount - 1) takerAndCard of
         Just c  -> c
         Nothing -> head h
   where
     tTrR c = takesTrick rule $ reverse $ c : t
-    takerAndCard = tTrR <$> h
+    takerAndCard = tTrR <$> h -- for each card in my hand, tell me who takes the trick.
 
 stupidPlay [] h _ = return $ head h
 stupidPlay _  h _ = return $ last h

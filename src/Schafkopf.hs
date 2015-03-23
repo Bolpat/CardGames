@@ -73,8 +73,7 @@ mainGameChoice canCall state @ AI.GameState { hands, game = Rufspiel _ } = do
 
 -- Farbwenz
 mainGameChoice _ state @ (game -> Wenz (Just _)) = do
-    let zSuits = ZipList suits
-    calledSuit <- choiceAlpha "Wähle eine Farbe:" $ getZipList $ (,) <$> (show <$> zSuits) <*> zSuits
+    calledSuit <- choiceAlpha "Wähle eine Farbe:" $ zipWith ((,) . show) suits suits
     let game = Wenz $ Just calledSuit
     
     let newState = state
@@ -87,8 +86,7 @@ mainGameChoice _ state @ (game -> Wenz (Just _)) = do
 
 -- Farbsolo
 mainGameChoice _ state @ (game -> Solo _) = do
-    let zSuits = ZipList suits
-    calledSuit <- choiceAlpha "Wähle eine Farbe:" $ getZipList $ (,) <$> (show <$> zSuits) <*> zSuits
+    calledSuit <- choiceAlpha "Wähle eine Farbe:" $ zipWith ((,) . show) suits suits
     let game = Solo calledSuit
     let newState = state
             {
@@ -144,7 +142,8 @@ mainPlay st = do
             }
       where
         suitChars = ['s', 'h', 'g', 'e']
-        rankChars = ['7', '8', '9', 'U', 'O', 'K', 'X', 'A']
+        rankChars = if Ten < Under then ['7', '8', '9', 'X', 'U', 'O', 'K',      'A']
+                                   else ['7', '8', '9',      'U', 'O', 'K', 'X', 'A']
         readCard = Parse.readCard suitChars rankChars
             
         giveBy = giveBy' . add no mod 4
@@ -182,7 +181,7 @@ mainFinish GameState
     | otherwise           = finalMessage (6 - p - mt) contraPartySc playerPartySc -- human is in contra party
       where
         playerParty = [p, mt]
-        contraParty = [0,1,2,3] \\ playerParty
+        contraParty = [0 .. 3] \\ playerParty
         
         playerPartySc = (score !! p)  +  (score !! mt)
         contraPartySc = 120 - playerPartySc
